@@ -193,12 +193,3 @@ function bindAdmin() {
 }
 
 init();
-const { data, error } = await supabase.auth.signUp({
-  email: 'keavanda@gmail.com',
-  password: 'password123',
-  options: {
-    data: {
-      name: 'លោកគ្រូ កែវ វណ្ណដា' // បញ្ជូនឈ្មោះខ្មែរ ឬ អង់គ្លេស តាមតម្រូវការ
-    }
-  }
-})
