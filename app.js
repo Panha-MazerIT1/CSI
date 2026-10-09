@@ -2,7 +2,6 @@
 const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
 // ===============================================
-
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -12,6 +11,9 @@ const COURSES = [
   "English Standard for practice Level 3",
   "Effective English Practice and Pronunciation Level 4"
 ];
+
+// បញ្ជីចំណាត់ថ្នាក់ (លេខ ១ ដល់ ៥)
+const CLASS_RANKS = ['១', '២', '៣', '៤', '៥'];
 
 // Tailwind class shortcuts
 const C = {
@@ -24,6 +26,31 @@ const C = {
   th: 'bg-brand text-white text-left px-3 py-2',
   td: 'px-3 py-2 border-t border-stone-200'
 };
+
+// Function បំប្លែងថ្ងៃខែឆ្នាំជាភាសាខ្មែរ (ទម្រង់ខ្លី)
+// ឧទាហរណ៍៖ '2025-04-12' → '១២ មេសា ២០២៥'
+function formatKhmerDate(dateString) {
+  if (!dateString) return '';
+  
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  
+  const day = date.getDate();
+  const month = date.getMonth();
+  const year = date.getFullYear();
+
+  const khmerMonths = [
+    'មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា',
+    'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'
+  ];
+
+  const khmerNumbers = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+  const toKhmerNum = (num) => {
+    return num.toString().split('').map(d => khmerNumbers[parseInt(d)]).join('');
+  };
+
+  return `${toKhmerNum(day)} ${khmerMonths[month]} ${toKhmerNum(year)}`;
+}
 
 let me, teachers = [], students = [], filter = '';
 
@@ -80,10 +107,18 @@ function render() {
       ${isAdmin() ? `<select id="a_t" required class="${C.input}"><option value="">ជ្រើសរើសគ្រូ</option>${teachers.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>` : ''}
       <input id="a_n" placeholder="ឈ្មោះសិស្ស" required class="${C.input}">
       <select id="a_g" class="${C.input}"><option>ស្រី</option><option>ប្រុស</option></select>
-      <input id="a_c" placeholder="ថ្នាក់ (លេខ)" class="${C.input}">
+      
+      <select id="a_c" class="${C.input}">
+        <option value="">ជ្រើសរើសចំណាត់ថ្នាក់</option>
+        ${CLASS_RANKS.map(r => `<option value="${r}">${r}</option>`).join('')}
+      </select>
+      
       <input id="a_d" type="date" aria-label="ថ្ងៃខែឆ្នាំកំណើត" class="${C.input}">
       <input id="a_o" list="cl" placeholder="វគ្គសិក្សា" class="${C.input}">
       <datalist id="cl">${COURSES.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+      
+      ${!isAdmin() ? `<input id="a_tn" placeholder="ឈ្មោះគ្រូ" value="${esc(me.name)}" class="${C.input}">` : ''}
+      
       <button class="${C.btn}">បន្ថែម</button>
     </form>
 
@@ -97,13 +132,15 @@ function render() {
       ${rows.length ? `
       <table class="w-full border-collapse">
         <thead><tr>
-          <th class="${C.th}">ល.រ</th><th class="${C.th}">ឈ្មោះ</th><th class="${C.th}">ភេទ</th><th class="${C.th}">ថ្នាក់</th>
+          <th class="${C.th}">ល.រ</th><th class="${C.th}">ឈ្មោះ</th><th class="${C.th}">ភេទ</th><th class="${C.th}">ចំណាត់ថ្នាក់</th>
           <th class="${C.th}">ថ្ងៃខែឆ្នាំកំណើត</th><th class="${C.th}">វគ្គសិក្សា</th><th class="${C.th}">ឈ្មោះគ្រូ</th><th class="${C.th}"></th>
         </tr></thead>
         <tbody>${rows.map((s, i) => `
           <tr>
             <td class="${C.td}">${i + 1}</td><td class="${C.td}">${esc(s.name)}</td><td class="${C.td}">${esc(s.gender)}</td>
-            <td class="${C.td}">${esc(s.class_no)}</td><td class="${C.td}">${esc(s.dob)}</td><td class="${C.td}">${esc(s.course)}</td>
+            <td class="${C.td}">${esc(s.class_no)}</td>
+            <td class="${C.td}">${esc(formatKhmerDate(s.dob))}</td>
+            <td class="${C.td}">${esc(s.course)}</td>
             <td class="${C.td}">${esc(tname(s.teacher_id))}</td>
             <td class="${C.td}"><button class="${C.del}" data-id="${s.id}">លុប</button></td>
           </tr>`).join('')}
@@ -128,21 +165,64 @@ function render() {
 
 async function addStudent(e) {
   e.preventDefault();
+  
+  // ✅ ប្រសិនបើគ្រូធម្មតាបំពេញឈ្មោះខុសពី Profile សូម Update Profile ជាមុនសិន
+  if (!isAdmin() && a_tn && a_tn.value.trim() && a_tn.value.trim() !== me.name) {
+    const newName = a_tn.value.trim();
+    
+    // ✅ Update ឈ្មោះទៅ Supabase
+    const { data: updated, error: updateErr } = await sb
+      .from('profiles')
+      .update({ name: newName })
+      .eq('id', me.id)
+      .select()
+      .single();
+    
+    // ✅ ពិនិត្យ Error ឱ្យបានត្រឹមត្រូវ
+    if (updateErr) {
+      alert('មិនអាចធ្វើបច្ចុប្បន្នភាពឈ្មោះគ្រូបានទេ: ' + updateErr.message);
+      return;
+    }
+    
+    // ✅ Update ឈ្មោះក្នុង memory ផងដែរ
+    me.name = newName;
+    
+    // ✅ Update ក្នុង Array teachers ផងដែរ
+    const teacherIndex = teachers.findIndex(t => t.id === me.id);
+    if (teacherIndex !== -1) {
+      teachers[teacherIndex].name = newName;
+    }
+  }
+  
   const row = {
     teacher_id: isAdmin() ? a_t.value : me.id,
-    name: a_n.value.trim(), gender: a_g.value, class_no: a_c.value.trim(),
-    dob: a_d.value || null, course: a_o.value.trim()
+    name: a_n.value.trim(), 
+    gender: a_g.value, 
+    class_no: a_c.value.trim(),
+    dob: a_d.value || null, 
+    course: a_o.value.trim()
   };
+  
   const { error } = await sb.from('students').insert(row);
   if (error) return alert(error.message);
-  await load(); render();
+  
+  await load(); 
+  render(); // ✅ Render ឡើងវិញដើម្បីបង្ហាញឈ្មោះថ្មីនៅ Header
 }
 
 function exportCsv() {
-  const head = ['ល.រ', 'ឈ្មោះ', 'ភេទ', 'ថ្នាក់', 'ថ្ងៃខែឆ្នាំកំណើត', 'វគ្គសិក្សា', 'ឈ្មោះគ្រូ'];
+  const head = ['ល.រ', 'ឈ្មោះ', 'ភេទ', 'ចំណាត់ថ្នាក់', 'ថ្ងៃខែឆ្នាំកំណើត', 'វគ្គសិក្សា', 'ឈ្មោះគ្រូ'];
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const lines = [head, ...shown().map((s, i) => [i + 1, s.name, s.gender, s.class_no, s.dob, s.course, tname(s.teacher_id)])]
-    .map(r => r.map(q).join(','));
+  const lines = [head, ...shown().map((s, i) => [
+    i + 1, 
+    s.name, 
+    s.gender, 
+    s.class_no, 
+    formatKhmerDate(s.dob),
+    s.course, 
+    tname(s.teacher_id)
+  ])].map(r => r.map(q).join(','));
+  
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -173,13 +253,24 @@ function adminPanel() {
 function bindAdmin() {
   tf.onsubmit = async e => {
     e.preventDefault();
-    // client ដាច់ដោយឡែក ដើម្បីកុំឲ្យ session របស់អ្នកគ្រប់គ្រងត្រូវជំនួស
     const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false, storageKey: 'tmp-signup' }
     });
-    const { data, error } = await tmp.auth.signUp({ email: t_e.value, password: t_p.value });
+    const { data, error } = await tmp.auth.signUp({ 
+      email: t_e.value, 
+      password: t_p.value,
+      options: {
+        data: {
+          name: t_n.value.trim()
+        }
+      }
+    });
     if (error || !data.user) return alert(error ? error.message : 'មិនអាចបង្កើតគណនីបានទេ');
-    const r = await sb.from('profiles').insert({ id: data.user.id, name: t_n.value.trim(), role: 'teacher' });
+    const r = await sb.from('profiles').insert({ 
+      id: data.user.id, 
+      name: t_n.value.trim(), 
+      role: 'teacher' 
+    });
     if (r.error) return alert(r.error.message);
     await load(); render();
   };
