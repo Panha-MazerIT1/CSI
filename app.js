@@ -1,10 +1,14 @@
 // ===== ដាក់ព័ត៌មាន Supabase របស់អ្នកនៅទីនេះ =====
 const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
-// ===============================================
-// ============================================================
+/// ============================================================
 // ✅ កំណត់តម្លៃ Supabase របស់អ្នកនៅទីនេះ
 // ============================================================
+// ============================================================
+// ✅ កំណត់តម្លៃ Supabase របស់អ្នកនៅទីនេះ===================================================
+// ✅ Logo សាលា (URL ខ្លី)
+// ============================================================
+const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
@@ -19,11 +23,16 @@ const COURSES = [
 
 const CLASS_RANKS = ['១', '២', '៣', '៤', '៥'];
 
-// ✅ Logo URL (ដាក់ URL របស់អ្នកនៅទីនេះ)
-const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjA3OTMyLCJleHAiOjE4MjMxNDM5MzJ9.IKmbWGKXPziQ4Rz0zJss2Zp4_G67Yeq1tj2ybDVNAKymMwgjywneFQRKGfHJqiQxz9b5YN51KZRLRFI7-DhfeQ';
+// ============================================================
+// ✅ Collator សម្រាប់អក្ខរក្រមខ្មែរ
+// ============================================================
+const khmerCollator = new Intl.Collator('km-KH', { sensitivity: 'base', numeric: true });
+function sortByKhmerName(a, b) {
+  return khmerCollator.compare(a.name || '', b.name || '');
+}
 
 // ============================================================
-// ✅ Tailwind Class Shortcuts (ពណ៌ថ្មីតាម Logo)
+// ✅ Tailwind Class Shortcuts
 // ============================================================
 const C = {
   input: 'w-full border border-slate-300 rounded-lg px-3 py-2.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition text-sm',
@@ -78,9 +87,9 @@ function showLogin(err = '') {
   <div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-slate-100">
     <form id="lf" class="w-full max-w-md grid gap-4 p-6 sm:p-8 ${C.card}">
       <div class="flex flex-col items-center gap-3 mb-2">
-        <img src="${LOGO_URL}" alt="Logo" class="h-20 w-auto object-contain" onerror="this.style.display='none'">
+        <img src="${LOGO_URL}" alt="Logo" class="h-24 sm:h-32 w-auto object-contain" onerror="this.style.display='none'">
         <h1 class="text-xl font-bold text-brand text-center">ប្រព័ន្ធទិន្នន័យសិស្ស</h1>
-        <p class="text-xs text-slate-500">សាលារៀនអន្តរជាតិ ខូស្ពេស</p>
+        <p class="text-xs text-slate-500">សាលាអន្តរទ្វីប ខូស្បេស៍</p>
       </div>
       <input id="em" type="email" placeholder="អ៊ីមែល" required class="${C.input}">
       <input id="pw" type="password" placeholder="ពាក្យសម្ងាត់" required class="${C.input}">
@@ -96,9 +105,35 @@ function showLogin(err = '') {
   };
 }
 
+// ============================================================
+// ✅ Load — ទាញយកតែទិន្នន័យរបស់ខ្លួនឯង
+// ============================================================
 async function load() {
-  teachers = (await sb.from('profiles').select('*').order('name')).data || [];
-  students = (await sb.from('students').select('*').order('id')).data || [];
+  // ✅ ទាញយកតែ "ខ្លួនឯង" និង "គ្រូរបស់ខ្លួន"
+  const { data: t } = await sb.from('profiles')
+    .select('*')
+    .or(`id.eq.${me.id},parent_admin_id.eq.${me.id}`);
+  teachers = (t || []).sort(sortByKhmerName);
+  
+  // ✅ ទាញយកសិស្សតែរបស់គ្រូដែលខ្លួនគ្រប់គ្រង
+  const teacherIds = teachers.map(t => t.id);
+  let studentsData = [];
+  if (teacherIds.length > 0) {
+    const { data: s } = await sb.from('students')
+      .select('*')
+      .in('teacher_id', teacherIds);
+    studentsData = s || [];
+  }
+  
+  students = studentsData.sort((a, b) => {
+    const teacherA = teachers.find(t => t.id === a.teacher_id);
+    const teacherB = teachers.find(t => t.id === b.teacher_id);
+    const nameA = teacherA ? teacherA.name : '';
+    const nameB = teacherB ? teacherB.name : '';
+    const teacherCompare = khmerCollator.compare(nameA, nameB);
+    if (teacherCompare !== 0) return teacherCompare;
+    return khmerCollator.compare(a.name || '', b.name || '');
+  });
 }
 
 const tname = id => (teachers.find(t => t.id === id) || {}).name || '';
@@ -110,10 +145,10 @@ function render() {
   $app.innerHTML = `
   <header class="bg-brand text-white shadow-md sticky top-0 z-10">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
-      <img src="${LOGO_URL}" alt="Logo" class="h-12 w-auto object-contain bg-white rounded-lg p-1" onerror="this.style.display='none'">
+      <img src="${LOGO_URL}" alt="Logo" class="h-20 sm:h-24 w-auto object-contain" onerror="this.style.display='none'">
       <div class="flex-1 min-w-0">
-        <h1 class="text-base sm:text-lg font-bold leading-tight">ប្រព័ន្ធទិន្នន័យសិស្ស</h1>
-        <p class="text-xs opacity-90 leading-tight">សាលារៀនអន្តរជាតិ ខូស្ពេស</p>
+        <h1 class="text-base sm:text-xl font-bold leading-tight">ប្រព័ន្ធទិន្នន័យសិស្ស</h1>
+        <p class="text-xs sm:text-sm opacity-90 leading-tight">សាលាអន្តរទ្វីប ខូស្បេស៍</p>
       </div>
       <div class="flex items-center gap-2">
         <span class="text-xs sm:text-sm hidden sm:inline">${esc(me.name)}${isAdmin() ? ' (អ្នកគ្រប់គ្រង)' : ''}</span>
@@ -128,7 +163,7 @@ function render() {
       បន្ថែមសិស្ស
     </h2>
     <form id="af" class="${C.form}">
-      ${isAdmin() ? `<select id="a_t" required class="${C.input}"><option value="">ជ្រើសរើសគ្រូ</option>${teachers.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>` : ''}
+      ${isAdmin() ? `<select id="a_t" required class="${C.input}"><option value="">ជ្រើសរើសគ្រូ</option>${teachers.filter(t => t.id !== me.id).map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>` : ''}
       <input id="a_n" placeholder="ឈ្មោះសិស្ស" required class="${C.input}">
       <select id="a_g" class="${C.input}"><option>ស្រី</option><option>ប្រុស</option></select>
       <select id="a_c" class="${C.input}">
@@ -139,7 +174,7 @@ function render() {
       <input id="a_o" list="cl" placeholder="វគ្គសិក្សា" class="${C.input}">
       <datalist id="cl">${COURSES.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
       ${!isAdmin() ? `<input id="a_tn" placeholder="ឈ្មោះគ្រូ" value="${esc(me.name)}" class="${C.input}">` : ''}
-      <button class="${C.btn} sm:col-span-2 lg:col-span-3">➕ បន្ថែមសិស្ស</button>
+      <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3">➕ បន្ថែមសិស្ស</button>
     </form>
 
     <div class="flex flex-wrap items-center gap-2 mt-6 mb-3">
@@ -147,7 +182,7 @@ function render() {
         <span class="w-1 h-5 bg-accent rounded"></span>
         បញ្ជីសិស្ស (${rows.length})
       </h2>
-      ${isAdmin() ? `<select id="flt" class="${C.input} max-w-xs"><option value="">គ្រូទាំងអស់</option>${teachers.map(t => `<option value="${t.id}" ${t.id === filter ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : ''}
+      ${isAdmin() ? `<select id="flt" class="${C.input} max-w-xs"><option value="">គ្រូទាំងអស់</option>${teachers.filter(t => t.id !== me.id).map(t => `<option value="${t.id}" ${t.id === filter ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : ''}
       <button id="csv" class="${C.ghost}">📥 ទាញយក CSV</button>
     </div>
 
@@ -232,7 +267,7 @@ function editRow(s, i) {
       <td class="${C.td}" data-label="ថ្ងៃខែឆ្នាំកំណើត"><input id="e_d_${s.id}" type="date" value="${s.dob || ''}" class="${C.input}"></td>
       <td class="${C.td}" data-label="វគ្គសិក្សា"><input id="e_o_${s.id}" value="${esc(s.course)}" class="${C.input}"></td>
       <td class="${C.td}" data-label="ឈ្មោះគ្រូ">
-        ${isAdmin() ? `<select id="e_t_${s.id}" class="${C.input}">${teachers.map(t => `<option value="${t.id}" ${s.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : esc(tname(s.teacher_id))}
+        ${isAdmin() ? `<select id="e_t_${s.id}" class="${C.input}">${teachers.filter(t => t.id !== me.id).map(t => `<option value="${t.id}" ${s.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : esc(tname(s.teacher_id))}
       </td>
       <td class="${C.td} whitespace-nowrap" data-label="សកម្មភាព">
         <button class="${C.save}" data-save="${s.id}">💾 រក្សាទុក</button>
@@ -293,7 +328,7 @@ function adminPanel() {
   return `
   <h2 class="font-bold text-brand text-base sm:text-lg mt-8 mb-3 flex items-center gap-2">
     <span class="w-1 h-5 bg-accent rounded"></span>
-    គ្រប់គ្រងគ្រូ
+    គ្រប់គ្រងគ្រូរបស់ខ្ញុំ
   </h2>
   <form id="tf" class="${C.form}">
     <input id="t_n" placeholder="ឈ្មោះគ្រូ" required class="${C.input}">
@@ -302,11 +337,11 @@ function adminPanel() {
     <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3">➕ បន្ថែមគ្រូ</button>
   </form>
   <div class="${C.card} overflow-x-auto mt-3">
-    <table class="w-full"><tbody>${teachers.map(t => `
+    <table class="w-full"><tbody>${teachers.filter(t => t.id !== me.id).map(t => `
       <tr class="hover:bg-slate-50">
         <td class="${C.td} font-medium">${esc(t.name)}</td>
         <td class="${C.td}"><span class="text-xs px-2 py-0.5 rounded ${t.role === 'admin' ? 'bg-red-100 text-accent' : 'bg-blue-100 text-brand'}">${t.role === 'admin' ? 'អ្នកគ្រប់គ្រង' : 'គ្រូ'}</span></td>
-        <td class="${C.td} text-right">${t.id === me.id ? '' : `<button class="${C.del}" data-t="${t.id}">🗑️ លុប</button>`}</td>
+        <td class="${C.td} text-right">${`<button class="${C.del}" data-t="${t.id}">🗑️ លុប</button>`}</td>
       </tr>`).join('')}
     </tbody></table>
   </div>`;
@@ -318,9 +353,20 @@ function bindAdmin() {
     const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false, storageKey: 'tmp-signup' }
     });
-    const { data, error } = await tmp.auth.signUp({ email: t_e.value, password: t_p.value, options: { data: { name: t_n.value.trim() } } });
+    const { data, error } = await tmp.auth.signUp({ 
+      email: t_e.value, 
+      password: t_p.value, 
+      options: { data: { name: t_n.value.trim() } } 
+    });
     if (error || !data.user) return alert(error ? error.message : 'មិនអាចបង្កើតគណនីបានទេ');
-    const r = await sb.from('profiles').insert({ id: data.user.id, name: t_n.value.trim(), role: 'teacher' });
+    
+    // ✅ បន្ថែមគ្រូថ្មីជាមួយ parent_admin_id
+    const r = await sb.from('profiles').insert({ 
+      id: data.user.id, 
+      name: t_n.value.trim(), 
+      role: 'teacher',
+      parent_admin_id: me.id  // ✅ កំណត់ Admin ដែលជាម្ចាស់
+    });
     if (r.error) return alert(r.error.message);
     await load(); render();
   };
