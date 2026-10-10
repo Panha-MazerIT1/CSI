@@ -16,11 +16,17 @@ const COURSES = [
 
 const CLASS_RANKS = ['១', '២', '៣', '៤', '៥'];
 
+// ============================================================
+// ✅ Collator សម្រាប់អក្ខរក្រមខ្មែរ
+// ============================================================
 const khmerCollator = new Intl.Collator('km-KH', { sensitivity: 'base', numeric: true });
 function sortByKhmerName(a, b) {
   return khmerCollator.compare(a.name || '', b.name || '');
 }
 
+// ============================================================
+// ✅ Tailwind Class Shortcuts
+// ============================================================
 const C = {
   input: 'w-full border border-slate-300 rounded-lg px-3 py-2.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition text-sm',
   btn: 'bg-brand text-white rounded-lg px-4 py-2.5 hover:bg-blue-900 active:scale-95 transition font-medium text-sm shadow-sm',
@@ -39,6 +45,9 @@ const C = {
   tabInactive: 'border-b-4 border-transparent text-slate-500 hover:text-brand'
 };
 
+// ============================================================
+// ✅ បំប្លែងថ្ងៃខែឆ្នាំជាភាសាខ្មែរ (ទម្រង់៖ ១២-មេសា-២០១០)
+// ============================================================
 function formatKhmerDate(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -91,12 +100,26 @@ function showLogin(err = '') {
   };
 }
 
+// ============================================================
+// ✅ Load — ទាញយកតែទិន្នន័យរបស់ខ្លួនឯង
+// ============================================================
 async function load() {
-  const { data: t } = await sb.from('profiles').select('*').or(`id.eq.${me.id},parent_admin_id.eq.${me.id}`);
+  // ✅ ទាញយក "ខ្លួនឯង" និង "គ្រូរបស់ខ្លួន"
+  const { data: t, error: errT } = await sb.from('profiles')
+    .select('*')
+    .or(`id.eq.${me.id},parent_admin_id.eq.${me.id}`);
+  
+  if (errT) {
+    console.error('❌ Error loading teachers:', errT);
+    alert('មិនអាចទាញយកគ្រូបានទេ: ' + errT.message);
+  }
+  
   teachers = (t || []).sort(sortByKhmerName);
+  console.log('✅ Loaded teachers:', teachers.length, teachers);
   
   const teacherIds = teachers.map(t => t.id);
   if (teacherIds.length > 0) {
+    // ✅ ទាញយកសិស្សប្រចាំត្រីមាស
     const { data: s } = await sb.from('students').select('*').in('teacher_id', teacherIds);
     students = (s || []).sort((a, b) => {
       const tA = teachers.find(t => t.id === a.teacher_id);
@@ -106,6 +129,7 @@ async function load() {
       return khmerCollator.compare(a.name || '', b.name || '');
     });
     
+    // ✅ ទាញយកសិស្សប្រចាំខែ
     const { data: ms } = await sb.from('monthly_students').select('*').in('teacher_id', teacherIds);
     monthlyStudents = (ms || []).sort((a, b) => {
       const tA = teachers.find(t => t.id === a.teacher_id);
@@ -149,8 +173,8 @@ function render() {
   <!-- ✅ Tabs -->
   <div class="bg-white border-b border-slate-200 sticky top-[88px] sm:top-[104px] z-10">
     <div class="max-w-7xl mx-auto px-4 flex gap-6">
-      <button id="tab-quarterly" class="py-3 text-sm sm:text-base ${isQ ? C.tabActive : C.tabInactive}">ប្រចាំត្រីមាស</button>
-      <button id="tab-monthly" class="py-3 text-sm sm:text-base ${!isQ ? C.tabActive : C.tabInactive}"> ប្រចាំខែ</button>
+      <button id="tab-quarterly" class="py-3 text-sm sm:text-base ${isQ ? C.tabActive : C.tabInactive}">📅 ប្រចាំត្រីមាស</button>
+      <button id="tab-monthly" class="py-3 text-sm sm:text-base ${!isQ ? C.tabActive : C.tabInactive}">🗓️ ប្រចាំខែ</button>
     </div>
   </div>
 
@@ -173,7 +197,7 @@ function render() {
         <datalist id="cl">${COURSES.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
       ` : ''}
       ${!isAdmin() ? `<input id="a_tn" placeholder="ឈ្មោះគ្រូ" value="${esc(me.name)}" class="${C.input}">` : ''}
-      <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3"> បន្ថែមសិស្ស</button>
+      <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3">➕ បន្ថែមសិស្ស</button>
     </form>
 
     <div class="flex flex-wrap items-center gap-2 mt-6 mb-3">
@@ -182,7 +206,7 @@ function render() {
         បញ្ជីសិស្ស ${isQ ? 'ប្រចាំត្រីមាស' : 'ប្រចាំខែ'} (${rows.length})
       </h2>
       ${isAdmin() ? `<select id="flt" class="${C.input} max-w-xs"><option value="">គ្រូទាំងអស់</option>${teachers.filter(t => t.id !== me.id).map(t => `<option value="${t.id}" ${t.id === filter ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : ''}
-      <button id="csv" class="${C.ghost}">ទាញយក CSV</button>
+      <button id="csv" class="${C.ghost}">📥 ទាញយក CSV</button>
     </div>
 
     <div class="${C.card} overflow-hidden">
@@ -251,8 +275,8 @@ function viewRowQ(s, i) {
       <td class="${C.td} text-slate-600 text-xs" data-label="វគ្គសិក្សា">${esc(s.course)}</td>
       <td class="${C.td} text-slate-600 text-xs" data-label="ឈ្មោះគ្រូ">${esc(tname(s.teacher_id))}</td>
       <td class="${C.td} whitespace-nowrap" data-label="សកម្មភាព">
-        <button class="${C.edit}" data-edit="${s.id}">កែ</button>
-        <button class="${C.del}" data-id="${s.id}">លុប</button>
+        <button class="${C.edit}" data-edit="${s.id}">✏️ កែ</button>
+        <button class="${C.del}" data-id="${s.id}">🗑️ លុប</button>
       </td>
     </tr>`;
 }
@@ -279,8 +303,8 @@ function editRowQ(s, i) {
         ${isAdmin() ? `<select id="e_t_${s.id}" class="${C.input}">${teachers.filter(t => t.id !== me.id).map(t => `<option value="${t.id}" ${s.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : esc(tname(s.teacher_id))}
       </td>
       <td class="${C.td} whitespace-nowrap" data-label="សកម្មភាព">
-        <button class="${C.save}" data-save="${s.id}"> រក្សាទុក</button>
-        <button class="${C.cancel}" data-cancel="${s.id}">បោះបង់</button>
+        <button class="${C.save}" data-save="${s.id}">💾 រក្សាទុក</button>
+        <button class="${C.cancel}" data-cancel="${s.id}">✖️ បោះបង់</button>
       </td>
     </tr>`;
 }
@@ -294,8 +318,8 @@ function viewRowM(s, i) {
       <td class="${C.td}" data-label="ចំណាត់ថ្នាក់"><span class="inline-block bg-blue-100 text-brand px-2 py-0.5 rounded text-xs font-medium">${esc(s.class_no)}</span></td>
       <td class="${C.td} text-slate-600 text-xs" data-label="ឈ្មោះគ្រូ">${esc(tname(s.teacher_id))}</td>
       <td class="${C.td} whitespace-nowrap" data-label="សកម្មភាព">
-        <button class="${C.edit}" data-edit="${s.id}">កែ</button>
-        <button class="${C.del}" data-id="${s.id}">លុប</button>
+        <button class="${C.edit}" data-edit="${s.id}">✏️ កែ</button>
+        <button class="${C.del}" data-id="${s.id}">🗑️ លុប</button>
       </td>
     </tr>`;
 }
@@ -314,8 +338,8 @@ function editRowM(s, i) {
         ${isAdmin() ? `<select id="e_t_${s.id}" class="${C.input}">${teachers.filter(t => t.id !== me.id).map(t => `<option value="${t.id}" ${s.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : esc(tname(s.teacher_id))}
       </td>
       <td class="${C.td} whitespace-nowrap" data-label="សកម្មភាព">
-        <button class="${C.save}" data-save="${s.id}">រក្សាទុក</button>
-        <button class="${C.cancel}" data-cancel="${s.id}">បោះបង់</button>
+        <button class="${C.save}" data-save="${s.id}">💾 រក្សាទុក</button>
+        <button class="${C.cancel}" data-cancel="${s.id}">✖️ បោះបង់</button>
       </td>
     </tr>`;
 }
@@ -414,7 +438,7 @@ function adminPanel() {
     <input id="t_n" placeholder="ឈ្មោះគ្រូ" required class="${C.input}">
     <input id="t_e" type="email" placeholder="អ៊ីមែល" required class="${C.input}">
     <input id="t_p" minlength="6" placeholder="ពាក្យសម្ងាត់ (យ៉ាងតិច ៦)" required class="${C.input}">
-    <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3">បន្ថែមគ្រូ</button>
+    <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3">➕ បន្ថែមគ្រូ</button>
   </form>
   <div class="${C.card} overflow-x-auto mt-3">
     <table class="w-full"><tbody>${teachers.filter(t => t.id !== me.id).map(t => `
@@ -429,20 +453,57 @@ function adminPanel() {
 
 function bindAdmin() {
   tf.onsubmit = async e => {
-    e.preventDefault();
-    const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false, storageKey: 'tmp-signup' }
-    });
-    const { data, error } = await tmp.auth.signUp({ 
-      email: t_e.value, password: t_p.value, options: { data: { name: t_n.value.trim() } } 
-    });
-    if (error || !data.user) return alert(error ? error.message : 'មិនអាចបង្កើតគណនីបានទេ');
-    const r = await sb.from('profiles').insert({ 
-      id: data.user.id, name: t_n.value.trim(), role: 'teacher', parent_admin_id: me.id 
-    });
-    if (r.error) return alert(r.error.message);
-    await load(); render();
-  };
+  e.preventDefault();
+  
+  // ✅ បង្កើត Client បណ្តោះអាសន្ន
+  const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, storageKey: 'tmp-signup' }
+  });
+  
+  // ✅ បង្កើត Account ក្នុង Auth
+  const { data, error } = await tmp.auth.signUp({ 
+    email: t_e.value, 
+    password: t_p.value, 
+    options: { data: { name: t_n.value.trim() } } 
+  });
+  
+  if (error || !data.user) {
+    console.error('❌ SignUp Error:', error);
+    return alert(error ? error.message : 'មិនអាចបង្កើតគណនីបានទេ');
+  }
+  
+  console.log('📝 Creating teacher:', {
+    id: data.user.id,
+    name: t_n.value.trim(),
+    role: 'teacher',
+    parent_admin_id: me.id
+  });
+  
+  // ✅ Insert Profile ជាមួយ parent_admin_id
+  const r = await sb.from('profiles').insert({ 
+    id: data.user.id, 
+    name: t_n.value.trim(), 
+    role: 'teacher', 
+    parent_admin_id: me.id 
+  });
+  
+  if (r.error) {
+    console.error('❌ Insert Error:', r.error);
+    return alert('មិនអាចបង្កើតគ្រូបានទេ: ' + r.error.message);
+  }
+  
+  console.log('✅ Teacher created successfully');
+  
+  // ✅ បង្ហាញភ្លាមៗដោយ Reload
+  await load(); 
+  render();
+  
+  // ✅ Clear Form
+  t_n.value = '';
+  t_e.value = '';
+  t_p.value = '';
+};
+  
   document.querySelectorAll('button[data-t]').forEach(b => b.onclick = async () => {
     if (!confirm('លុបគ្រូនេះ រួមទាំងទិន្នន័យសិស្សរបស់គាត់ទាំងអស់?')) return;
     const { error } = await sb.from('profiles').delete().eq('id', b.dataset.t);
