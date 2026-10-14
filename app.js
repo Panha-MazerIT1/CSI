@@ -9,11 +9,9 @@ const $app = document.getElementById('app');
 
 // ✅ Font — ត្រូវដូចប្រព័ន្ធគ្រប់គ្រងវត្តមាន (ប្តូរតែឈ្មោះនៅបន្ទាត់ខាងក្រោម)
 const APP_FONT = 'Battambang';
-document.head.insertAdjacentHTML('beforeend', `<style>
-.cb{appearance:none;-webkit-appearance:none;width:1.35rem;height:1.35rem;border:2px solid #cbd5e1;border-radius:9999px;background-color:#fff;background-position:center;background-repeat:no-repeat;background-size:70%;cursor:pointer;transition:all .15s;vertical-align:middle}
-.cb:hover{border-color:#94a3b8}
-.cb:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E")}
-</style>`);;
+document.head.insertAdjacentHTML('beforeend',
+  `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${APP_FONT.replace(/ /g, '+')}:wght@400;700&display=swap">` +
+  `<style>body,body *{font-family:'${APP_FONT}','Noto Sans Khmer',system-ui,sans-serif!important}body{background:#f3f5f9!important}</style>`);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const COURSES = [
