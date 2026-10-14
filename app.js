@@ -78,6 +78,7 @@ async function init() {
   me = p;
   await load();
   render();
+  startRealtime();
 }
 
 function showLogin(err = '') {
@@ -197,7 +198,7 @@ function render() {
     <div class="flex flex-wrap items-center gap-2 mt-6 mb-3">
       <h2 class="font-bold text-brand text-base sm:text-lg flex-1 flex items-center gap-2"><span class="w-1 h-5 bg-accent rounded"></span>បញ្ជីសិស្ស ${label} (${rows.length})</h2>
       ${isAdmin() ? `<select id="flt" class="${C.input} max-w-xs"><option value="">គ្រូទាំងអស់</option>${tOpts(filter)}</select>` : ''}
-      <button id="csv" class="${C.ghost}">ទាញយក CSV</button>
+      <button id="csv" class="${C.ghost}">ទាញយក Excel</button>
       <button type="button" id="imp" class="${C.ghost}">នាំចូលពី Excel (ចំណាត់ថ្នាក់ ៥)</button>
       <input type="file" id="xl" accept=".xlsx,.xls,.csv" class="hidden">
     </div>
@@ -215,9 +216,9 @@ function render() {
   const sel = s => document.querySelectorAll(s);
   $('tab-quarterly').onclick = () => { activeTab = 'quarterly'; editingId = null; render(); };
   $('tab-monthly').onclick = () => { activeTab = 'monthly'; editingId = null; render(); };
-  $('out').onclick = async () => { await sb.auth.signOut(); showLogin(); };
+  $('out').onclick = async () => { stopRealtime(); me = null; await sb.auth.signOut(); showLogin(); };
   $('af').onsubmit = addStudent;
-  $('csv').onclick = exportCsv;
+  $('csv').onclick = exportExcel;
   $('imp').onclick = () => $('xl').click();
   $('xl').onchange = importExcel;
   if ($('flt')) $('flt').onchange = e => { filter = e.target.value; render(); };
@@ -232,6 +233,34 @@ function render() {
     await load(); render();
   });
   if (isAdmin()) bindAdmin();
+}
+
+// ---------- Auto reload (Realtime + ពិនិត្យរាល់ ៦០ វិនាទី) ----------
+let rtChannel = null, rtTimer = null, rtPoll = null;
+// កុំ reload ពេលកំពុងកែ ឬកំពុងវាយក្នុងទម្រង់ ដើម្បីកុំឲ្យបាត់អ្វីដែលបានវាយ
+const formBusy = () => editingId != null || ['a_n', 'a_o', 't_n', 't_e', 't_p'].some(id => (document.getElementById(id)?.value || '').trim());
+
+async function refresh() {
+  if (!me || formBusy()) return;
+  await load();
+  render();
+}
+
+function startRealtime() {
+  if (rtChannel) return;
+  const schedule = () => { clearTimeout(rtTimer); rtTimer = setTimeout(refresh, 600); };
+  rtChannel = sb.channel('school-data');
+  ['students', 'monthly_students', 'profiles'].forEach(table =>
+    rtChannel.on('postgres_changes', { event: '*', schema: 'public', table }, schedule));
+  rtChannel.subscribe();
+  rtPoll = setInterval(refresh, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+}
+
+function stopRealtime() {
+  if (rtChannel) sb.removeChannel(rtChannel);
+  clearInterval(rtPoll); clearTimeout(rtTimer);
+  rtChannel = rtPoll = rtTimer = null;
 }
 
 // ---------- បន្ថែម / កែ ----------
@@ -262,19 +291,19 @@ async function saveEdit(id) {
   await load(); render();
 }
 
-// ---------- ទាញយក CSV ----------
-function exportCsv() {
+// ---------- ទាញយក Excel (.xlsx) ----------
+function exportExcel() {
+  if (typeof XLSX === 'undefined') return alert('មិនទាន់ដាក់ script របស់ XLSX ក្នុង index.html ទេ');
   const rows = shown();
   const head = heads().slice(0, -1);
   const data = rows.map((s, i) => isQ()
     ? [i + 1, s.name, s.gender, s.class_no, formatKhmerDate(s.dob), s.course, tname(s.teacher_id)]
     : [i + 1, s.name, s.class_no, tname(s.teacher_id)]);
-  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const csv = [head, ...data].map(r => r.map(q).join(',')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = (isQ() ? 'quarterly-' : 'monthly-') + new Date().toISOString().slice(0, 10) + '.csv';
-  a.click();
+  const ws = XLSX.utils.aoa_to_sheet([head, ...data]);
+  ws['!cols'] = head.map((h, c) => ({ wch: Math.min(45, Math.max(String(h).length, ...data.map(r => String(r[c] ?? '').length)) + 2) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, isQ() ? 'ប្រចាំត្រីមាស' : 'ប្រចាំខែ');
+  XLSX.writeFile(wb, (isQ() ? 'quarterly-' : 'monthly-') + new Date().toISOString().slice(0, 10) + '.xlsx');
 }
 
 // ---------- នាំចូលពី Excel (យកតែចំណាត់ថ្នាក់ ៥) ----------
