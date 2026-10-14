@@ -1,7 +1,6 @@
 // ===== ដាក់ព័ត៌មាន Supabase របស់អ្នកនៅទីនេះ =====
 const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
-
 // SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -72,7 +71,13 @@ const tname = id => (teachers.find(t => t.id === id) || {}).name || '';
 const myTeachers = () => teachers.filter(t => t.id !== me.id);
 const tOpts = sel => myTeachers().map(t => `<option value="${t.id}" ${t.id === sel ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
 const shown = () => (isQ() ? students : monthlyStudents).filter(s => !filter || s.teacher_id === filter);
-const byTeacherThenName = (a, b) => khmerCollator.compare(tname(a.teacher_id), tname(b.teacher_id)) || sortByKhmerName(a, b);
+// តម្រៀប៖ សិស្សរបស់គ្រូម្នាក់ៗនៅជាប់គ្នា (តាម teacher_id ពិតប្រាកដ)
+const SORT_WITHIN = 'entry'; // 'entry' = តាមលំដាប់បញ្ចូល/នាំចូល (ដូច Google Sheet) · 'name' = តាមអក្ខរក្រមខ្មែរ
+const tIndex = id => { const i = teachers.findIndex(t => t.id === id); return i < 0 ? 9999 : i; };
+const byTeacherThenName = (a, b) => (tIndex(a.teacher_id) - tIndex(b.teacher_id)) ||
+  (SORT_WITHIN === 'name' ? sortByKhmerName(a, b) : Number(a.id) - Number(b.id));
+const T_CLR = ['bg-rose-100 text-rose-800', 'bg-sky-100 text-sky-800', 'bg-emerald-100 text-emerald-800', 'bg-amber-100 text-amber-800', 'bg-violet-100 text-violet-800', 'bg-teal-100 text-teal-800', 'bg-orange-100 text-orange-800', 'bg-indigo-100 text-indigo-800'];
+const teacherPill = id => `<span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${T_CLR[tIndex(id) % T_CLR.length]}">${esc(tname(id))}</span>`;
 
 // ---------- ចូលប្រព័ន្ធ ----------
 async function init() {
@@ -135,16 +140,16 @@ const heads = () => isQ()
   ? ['ល.រ', 'ឈ្មោះ', 'ភេទ', 'ចំណាត់ថ្នាក់', 'ថ្ងៃខែឆ្នាំកំណើត', 'វគ្គសិក្សា', 'ឈ្មោះគ្រូ', 'សកម្មភាព']
   : ['ល.រ', 'ឈ្មោះ', 'ចំណាត់ថ្នាក់', 'ឈ្មោះគ្រូ', 'សកម្មភាព'];
 
-function viewRow(s, i) {
+function viewRow(s, i, groupStart = false) {
   const q = isQ();
-  return `<tr class="odd:bg-white even:bg-slate-50/70 hover:bg-brand/5 transition">
+  return `<tr class="bg-white hover:bg-brand/5 transition ${groupStart ? 'border-t-2 border-slate-300' : ''}">
     ${td('ជ្រើស', `<input type="checkbox" class="w-4 h-4 accent-brand" data-sel="${s.id}" ${selS.has(String(s.id)) ? 'checked' : ''}>`)}
     ${td('ល.រ', i + 1)}
     ${td('ឈ្មោះ', esc(s.name), 'font-medium')}
     ${q ? td('ភេទ', esc(s.gender)) : ''}
     ${td('ចំណាត់ថ្នាក់', rankBadge(s.class_no))}
     ${q ? td('ថ្ងៃខែឆ្នាំកំណើត', esc(formatKhmerDate(s.dob))) + td('វគ្គសិក្សា', esc(s.course), 'text-slate-600 text-xs') : ''}
-    ${td('ឈ្មោះគ្រូ', esc(tname(s.teacher_id)), 'text-slate-600 text-xs')}
+    ${td('ឈ្មោះគ្រូ', teacherPill(s.teacher_id))}
     ${td('សកម្មភាព', `<button class="${C.edit}" data-edit="${s.id}">កែ</button> <button class="${C.del}" data-id="${s.id}">លុប</button>`, 'whitespace-nowrap')}
   </tr>`;
 }
@@ -222,7 +227,7 @@ function render() {
     <div class="${C.card} overflow-hidden">
       ${rows.length ? `<div class="overflow-x-auto"><table class="w-full border-collapse responsive-table">
         <thead><tr><th class="${C.th} w-10"><input type="checkbox" id="selAll" class="w-4 h-4 accent-brand" ${rows.length && rows.every(x => selS.has(String(x.id))) ? 'checked' : ''}></th>${heads().map(h => `<th class="${C.th}">${h}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map((s, i) => String(editingId) === String(s.id) ? editRow(s, i) : viewRow(s, i)).join('')}</tbody>
+        <tbody>${rows.map((s, i) => String(editingId) === String(s.id) ? editRow(s, i) : viewRow(s, i, i > 0 && rows[i - 1].teacher_id !== s.teacher_id)).join('')}</tbody>
       </table></div>` : `<div class="p-12 text-center"><div class="text-4xl mb-2">📋</div><p class="text-slate-500">មិនទាន់មានសិស្សទេ។ បំពេញទម្រង់ខាងលើដើម្បីបន្ថែមសិស្សដំបូង។</p></div>`}
     </div>
     ${isAdmin() ? adminPanel() : ''}
