@@ -2,6 +2,7 @@
 const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
 // SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
+// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
@@ -11,6 +12,11 @@ const APP_FONT = 'Battambang';
 document.head.insertAdjacentHTML('beforeend',
   `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${APP_FONT.replace(/ /g, '+')}:wght@400;700&display=swap">` +
   `<style>body,body *{font-family:'${APP_FONT}','Noto Sans Khmer',system-ui,sans-serif!important}body{background:#f3f5f9!important}</style>`);
+document.head.insertAdjacentHTML('beforeend', `<style>
+.cb{appearance:none;-webkit-appearance:none;width:1.35rem;height:1.35rem;border:2px solid #cbd5e1;border-radius:9999px;background-color:#fff;background-position:center;background-repeat:no-repeat;background-size:70%;cursor:pointer;transition:all .15s;vertical-align:middle;flex:none}
+.cb:hover{border-color:#94a3b8}
+.cb:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E")}
+</style>`);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const COURSES = [
@@ -144,7 +150,7 @@ const heads = () => isQ()
 function viewRow(s, i, groupStart = false) {
   const q = isQ();
   return `<tr class="bg-white hover:bg-brand/5 transition ${groupStart ? 'border-t-2 border-slate-300' : ''}">
-    ${td('ជ្រើស', `<input type="checkbox" class="w-4 h-4 accent-brand" data-sel="${s.id}" ${selS.has(String(s.id)) ? 'checked' : ''}>`)}
+    ${td('ជ្រើស', `<input type="checkbox" class="cb checked:bg-brand checked:border-brand" data-sel="${s.id}" ${selS.has(String(s.id)) ? 'checked' : ''}>`)}
     ${td('ល.រ', i + 1)}
     ${td('ឈ្មោះ', esc(s.name), 'font-medium')}
     ${q ? td('ភេទ', esc(s.gender)) : ''}
@@ -217,7 +223,8 @@ function render() {
     <div class="flex flex-wrap items-center gap-2 mt-6 mb-3">
       <h2 class="font-bold text-brand text-base sm:text-lg flex-1 flex items-center gap-2"><span class="w-1 h-5 bg-accent rounded"></span>បញ្ជីសិស្ស ${label} (${rows.length})</h2>
       ${isAdmin() ? `<select id="flt" class="${C.input} max-w-xs"><option value="">គ្រូទាំងអស់</option>${tOpts(filter)}</select>` : ''}
-      <button id="csv" class="${C.ghost}">ទាញយក Excel</button>
+      <button id="csv" class="${C.ghost}">ទាញយកប័ណ្ណសរសើរ (Excel)</button>
+      <button id="hon" class="${C.ghost}">ទាញយកតារាងកិត្តិយស (Excel)</button>
       <button type="button" id="imp" class="${C.ghost}">នាំចូលពី Excel (ចំណាត់ថ្នាក់ ៥)</button>
       <input type="file" id="xl" accept=".xlsx,.xls,.csv" class="hidden">
     </div>
@@ -226,10 +233,10 @@ function render() {
       <span class="text-sm font-semibold text-accent">បានជ្រើស ${khNum(selS.size)} នាក់</span><span class="flex-1"></span>
       <button id="bulkDel" class="${C.btnAccent}">លុបដែលបានជ្រើស</button><button id="bulkClr" class="${C.cancel}">បោះបង់ការជ្រើស</button></div>` : ''}
     <div class="${C.card} overflow-hidden">
-      ${rows.length ? `<div class="overflow-x-auto"><table class="w-full border-collapse responsive-table">
-        <thead><tr><th class="${C.th} w-10"><input type="checkbox" id="selAll" class="w-4 h-4 accent-brand" ${rows.length && rows.every(x => selS.has(String(x.id))) ? 'checked' : ''}></th>${heads().map(h => `<th class="${C.th}">${h}</th>`).join('')}</tr></thead>
+      ${rows.length && q ? `<div class="overflow-x-auto"><table class="w-full border-collapse responsive-table">
+        <thead><tr><th class="${C.th} w-10"><input type="checkbox" id="selAll" class="cb checked:bg-brand checked:border-brand" ${rows.length && rows.every(x => selS.has(String(x.id))) ? 'checked' : ''}></th>${heads().map(h => `<th class="${C.th}">${h}</th>`).join('')}</tr></thead>
         <tbody>${rows.map((s, i) => String(editingId) === String(s.id) ? editRow(s, i) : viewRow(s, i, i > 0 && rows[i - 1].teacher_id !== s.teacher_id)).join('')}</tbody>
-      </table></div>` : `<div class="p-12 text-center"><div class="text-4xl mb-2">📋</div><p class="text-slate-500">មិនទាន់មានសិស្សទេ។ បំពេញទម្រង់ខាងលើដើម្បីបន្ថែមសិស្សដំបូង។</p></div>`}
+      </table></div>` : rows.length ? gridHtml(rows) : `<div class="p-12 text-center"><div class="text-4xl mb-2">📋</div><p class="text-slate-500">មិនទាន់មានសិស្សទេ។ បំពេញទម្រង់ខាងលើដើម្បីបន្ថែមសិស្សដំបូង។</p></div>`}
     </div>
     ${isAdmin() ? adminPanel() : ''}
   </main>
@@ -242,6 +249,7 @@ function render() {
   $('out').onclick = async () => { stopRealtime(); me = null; await sb.auth.signOut(); showLogin(); };
   $('af').onsubmit = addStudent;
   $('csv').onclick = exportExcel;
+  $('hon').onclick = exportHonor;
   $('imp').onclick = () => $('xl').click();
   $('xl').onchange = importExcel;
   if ($('flt')) $('flt').onchange = e => { filter = e.target.value; selS.clear(); render(); };
@@ -264,6 +272,15 @@ function render() {
     if (error) return alert(error.message);
     selS.clear(); await load(); render();
   };
+  sel('button[data-ren]').forEach(b => b.onclick = async e => {
+    e.preventDefault();
+    const cur = monthlyStudents.find(x => String(x.id) === b.dataset.ren);
+    const nn = prompt('កែឈ្មោះសិស្ស', cur ? cur.name : '');
+    if (nn === null || !nn.trim() || (cur && nn.trim() === cur.name)) return;
+    const { error } = await sb.from('monthly_students').update({ name: nn.trim() }).eq('id', b.dataset.ren);
+    if (error) return alert(error.message);
+    await load(); render();
+  });
   if (isAdmin()) bindAdmin();
 }
 
@@ -321,6 +338,54 @@ async function saveEdit(id) {
   if (error) return alert('មិនអាចរក្សាទុកបានទេ: ' + error.message);
   editingId = null;
   await load(); render();
+}
+
+// ---------- ទម្រង់តារាងកិត្តិយស (ចំណាត់ថ្នាក់ ១-៥ ក្នុងមួយជួរ ក្រុមតាមគ្រូ) ----------
+function gridRows(rows) {
+  const byT = new Map(), out = [];
+  rows.forEach(s => {
+    if (!byT.has(s.teacher_id)) byT.set(s.teacher_id, CLASS_RANKS.map(() => []));
+    const k = CLASS_RANKS.indexOf(s.class_no);
+    if (k >= 0) byT.get(s.teacher_id)[k].push(s);
+  });
+  byT.forEach((cols, tid) => {
+    const n = Math.max(...cols.map(c => c.length));
+    for (let i = 0; i < n; i++) out.push({ tid, start: i === 0, cells: cols.map(c => c[i] || null) });
+  });
+  return out;
+}
+
+const chip = s => `<label class="inline-flex items-center gap-2 bg-slate-50 hover:bg-white border border-slate-200 rounded-full pl-2.5 pr-1.5 py-1 text-sm">
+  <input type="checkbox" class="cb checked:bg-brand checked:border-brand" data-sel="${s.id}" ${selS.has(String(s.id)) ? 'checked' : ''}>
+  <span>${esc(s.name)}</span>
+  <button type="button" class="text-brand/70 hover:text-brand px-1 text-xs" data-ren="${s.id}" title="កែឈ្មោះ">✎</button></label>`;
+
+function gridHtml(rows) {
+  const g = gridRows(rows);
+  return `<div class="overflow-x-auto"><table class="w-full border-collapse min-w-[820px]">
+    <thead><tr>
+      <th class="${C.th} w-20"><span class="inline-flex items-center gap-2"><input type="checkbox" id="selAll" class="cb checked:bg-brand checked:border-brand" ${rows.length && rows.every(x => selS.has(String(x.id))) ? 'checked' : ''}>ល.រ</span></th>
+      ${CLASS_RANKS.map(r => `<th class="${C.th} text-center">ចំណាត់ថ្នាក់លេខ ${r}</th>`).join('')}
+      <th class="${C.th}">គ្រូ</th>
+    </tr></thead>
+    <tbody>${g.map((r, i) => `<tr class="bg-white hover:bg-brand/5 transition ${r.start && i > 0 ? 'border-t-2 border-slate-300' : ''}">
+      <td class="${C.td}">${i + 1}</td>
+      ${r.cells.map(s => `<td class="${C.td} align-top">${s ? chip(s) : ''}</td>`).join('')}
+      <td class="${C.td}">${teacherPill(r.tid)}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function exportHonor() {
+  if (typeof XLSX === 'undefined') return alert('មិនទាន់ដាក់ script របស់ XLSX ក្នុង index.html ទេ');
+  const g = gridRows(shown());
+  if (!g.length) return alert('មិនទាន់មានទិន្នន័យសម្រាប់ទាញយកទេ');
+  const head = ['ល.រ', ...CLASS_RANKS.map(r => 'ចំណាត់ថ្នាក់លេខ ' + r), 'Teacher'];
+  const data = g.map((r, i) => [i + 1, ...r.cells.map(c => c ? c.name : ''), tname(r.tid)]);
+  const ws = XLSX.utils.aoa_to_sheet([head, ...data]);
+  ws['!cols'] = head.map((h, c) => ({ wch: Math.min(40, Math.max(String(h).length, ...data.map(r => String(r[c] ?? '').length)) + 2) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'តារាងកិត្តិយស');
+  XLSX.writeFile(wb, 'honor-roll-' + new Date().toISOString().slice(0, 10) + '.xlsx');
 }
 
 // ---------- ទាញយក Excel (.xlsx) ----------
@@ -422,13 +487,13 @@ function adminPanel() {
     <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3">បន្ថែមគ្រូ</button>
   </form>
   <div class="flex flex-wrap items-center gap-3 mt-3 mb-2 px-1">
-    <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="selAllT" class="w-4 h-4 accent-brand" ${myTeachers().length && myTeachers().every(t => selT.has(t.id)) ? 'checked' : ''}> ជ្រើសគ្រូទាំងអស់</label>
+    <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="selAllT" class="cb checked:bg-brand checked:border-brand" ${myTeachers().length && myTeachers().every(t => selT.has(t.id)) ? 'checked' : ''}> ជ្រើសគ្រូទាំងអស់</label>
     ${selT.size ? `<span class="text-sm font-semibold text-accent">បានជ្រើស ${khNum(selT.size)} នាក់</span><span class="flex-1"></span>
       <button id="bulkDelT" class="${C.btnAccent}">លុបគ្រូដែលបានជ្រើស</button><button id="bulkClrT" class="${C.cancel}">បោះបង់ការជ្រើស</button>` : ''}
   </div>
   <div class="${C.card} overflow-x-auto"><table class="w-full"><tbody>${myTeachers().map(t => `
     <tr class="hover:bg-slate-50">
-      <td class="${C.td} w-10"><input type="checkbox" class="w-4 h-4 accent-brand" data-selt="${t.id}" ${selT.has(t.id) ? 'checked' : ''}></td>
+      <td class="${C.td} w-10"><input type="checkbox" class="cb checked:bg-brand checked:border-brand" data-selt="${t.id}" ${selT.has(t.id) ? 'checked' : ''}></td>
       <td class="${C.td} font-medium">${esc(t.name)}</td>
       <td class="${C.td}"><span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-brand">គ្រូ</span></td>
       <td class="${C.td} text-right"><button class="${C.del}" data-t="${t.id}">លុប</button></td>
