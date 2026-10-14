@@ -3,6 +3,7 @@ const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
 // SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 // SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
+// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
@@ -223,7 +224,7 @@ function render() {
     <div class="flex flex-wrap items-center gap-2 mt-6 mb-3">
       <h2 class="font-bold text-brand text-base sm:text-lg flex-1 flex items-center gap-2"><span class="w-1 h-5 bg-accent rounded"></span>បញ្ជីសិស្ស ${label} (${rows.length})</h2>
       ${isAdmin() ? `<select id="flt" class="${C.input} max-w-xs"><option value="">គ្រូទាំងអស់</option>${tOpts(filter)}</select>` : ''}
-      <button id="csv" class="${C.ghost}">ទាញយកប័ណ្ណសរសើរ (Excel)</button>
+      ${q ? `<button id="csv" class="${C.ghost}">ទាញយកប័ណ្ណសរសើរ (Excel)</button>` : ''}
       <button id="hon" class="${C.ghost}">ទាញយកតារាងកិត្តិយស (Excel)</button>
       <button type="button" id="imp" class="${C.ghost}">នាំចូលពី Excel (ចំណាត់ថ្នាក់ ៥)</button>
       <input type="file" id="xl" accept=".xlsx,.xls,.csv" class="hidden">
@@ -248,7 +249,7 @@ function render() {
   $('tab-monthly').onclick = () => { activeTab = 'monthly'; editingId = null; selS.clear(); render(); };
   $('out').onclick = async () => { stopRealtime(); me = null; await sb.auth.signOut(); showLogin(); };
   $('af').onsubmit = addStudent;
-  $('csv').onclick = exportExcel;
+  if ($('csv')) $('csv').onclick = exportExcel;
   $('hon').onclick = exportHonor;
   $('imp').onclick = () => $('xl').click();
   $('xl').onchange = importExcel;
