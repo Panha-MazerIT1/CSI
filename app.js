@@ -107,6 +107,7 @@ function showLogin(err = '') {
       <input id="pw" type="password" placeholder="ពាក្យសម្ងាត់" required class="${C.input}">
       <button class="${C.btn}">ចូលប្រើប្រាស់</button>
       <p id="lm" class="text-red-600 text-sm text-center min-h-[1.2em]">${esc(err)}</p>
+      <p class="text-center text-xs text-slate-500">បង្កើតដោយ <span class="font-semibold text-brand">រិន បញ្ញា</span> (Rin Panha)</p>
     </form>
   </div>`;
   document.getElementById('lf').onsubmit = async e => {
@@ -231,7 +232,8 @@ function render() {
       </table></div>` : `<div class="p-12 text-center"><div class="text-4xl mb-2">📋</div><p class="text-slate-500">មិនទាន់មានសិស្សទេ។ បំពេញទម្រង់ខាងលើដើម្បីបន្ថែមសិស្សដំបូង។</p></div>`}
     </div>
     ${isAdmin() ? adminPanel() : ''}
-  </main>`;
+  </main>
+  <footer class="max-w-7xl mx-auto px-4 pb-8 pt-2 text-center text-xs text-slate-500">បង្កើតដោយ <span class="font-semibold text-brand">រិន បញ្ញា</span> (Rin Panha)</footer>`;
 
   const $ = id => document.getElementById(id);
   const sel = s => document.querySelectorAll(s);
