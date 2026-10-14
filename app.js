@@ -9,9 +9,11 @@ const $app = document.getElementById('app');
 
 // ✅ Font — ត្រូវដូចប្រព័ន្ធគ្រប់គ្រងវត្តមាន (ប្តូរតែឈ្មោះនៅបន្ទាត់ខាងក្រោម)
 const APP_FONT = 'Battambang';
-document.head.insertAdjacentHTML('beforeend',
-  `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${APP_FONT.replace(/ /g, '+')}:wght@400;700&display=swap">` +
-  `<style>body,body *{font-family:'${APP_FONT}','Noto Sans Khmer',system-ui,sans-serif!important}body{background:#f3f5f9!important}</style>`);
+document.head.insertAdjacentHTML('beforeend', `<style>
+.cb{appearance:none;-webkit-appearance:none;width:1.35rem;height:1.35rem;border:2px solid #cbd5e1;border-radius:9999px;background-color:#fff;background-position:center;background-repeat:no-repeat;background-size:70%;cursor:pointer;transition:all .15s;vertical-align:middle}
+.cb:hover{border-color:#94a3b8}
+.cb:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E")}
+</style>`);;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const COURSES = [
@@ -58,6 +60,14 @@ function formatKhmerDate(s) {
 
 let me, teachers = [], students = [], monthlyStudents = [], filter = '', activeTab = 'quarterly', editingId = null;
 
+const selS = new Set(), selT = new Set();   // ការជ្រើសរើស: សិស្ស / គ្រូ
+const FORM_IDS = ['a_n', 'a_t', 'a_c', 'a_g', 'a_d', 'a_o', 'a_tn', 't_n', 't_e', 't_p'];
+// render ឡើងវិញ តែរក្សាអ្វីដែលកំពុងវាយក្នុងទម្រង់
+function rerender() {
+  const v = Object.fromEntries(FORM_IDS.map(id => [id, document.getElementById(id)?.value]));
+  render();
+  FORM_IDS.forEach(id => { const el = document.getElementById(id); if (el && v[id] !== undefined) el.value = v[id]; });
+}
 const isQ = () => activeTab === 'quarterly';
 const isAdmin = () => me.role === 'admin';
 const tname = id => (teachers.find(t => t.id === id) || {}).name || '';
@@ -110,9 +120,12 @@ async function load() {
   if (error) alert('មិនអាចទាញយកគ្រូបានទេ: ' + error.message);
   teachers = (t || []).sort(sortByKhmerName);
   const ids = teachers.map(x => x.id);
-  if (!ids.length) { students = []; monthlyStudents = []; return; }
+  if (!ids.length) { students = []; monthlyStudents = []; selS.clear(); selT.clear(); return; }
   const get = async table => ((await sb.from(table).select('*').in('teacher_id', ids)).data || []).sort(byTeacherThenName);
   [students, monthlyStudents] = await Promise.all([get('students'), get('monthly_students')]);
+  const cur = new Set((isQ() ? students : monthlyStudents).map(x => String(x.id)));
+  [...selS].forEach(id => { if (!cur.has(id)) selS.delete(id); });
+  [...selT].forEach(id => { if (!teachers.some(t => t.id === id)) selT.delete(id); });
 }
 
 // ---------- បង្ហាញ ----------
@@ -127,6 +140,7 @@ const heads = () => isQ()
 function viewRow(s, i) {
   const q = isQ();
   return `<tr class="odd:bg-white even:bg-slate-50/70 hover:bg-brand/5 transition">
+    ${td('ជ្រើស', `<input type="checkbox" class="w-4 h-4 accent-brand" data-sel="${s.id}" ${selS.has(String(s.id)) ? 'checked' : ''}>`)}
     ${td('ល.រ', i + 1)}
     ${td('ឈ្មោះ', esc(s.name), 'font-medium')}
     ${q ? td('ភេទ', esc(s.gender)) : ''}
@@ -140,6 +154,7 @@ function viewRow(s, i) {
 function editRow(s, i) {
   const q = isQ();
   return `<tr class="bg-yellow-50">
+    ${td('ជ្រើស', '')}
     ${td('ល.រ', i + 1)}
     ${td('ឈ្មោះ', `<input id="e_n_${s.id}" value="${esc(s.name)}" class="${C.input}">`)}
     ${q ? td('ភេទ', `<select id="e_g_${s.id}" class="${C.input}"><option ${s.gender === 'ស្រី' ? 'selected' : ''}>ស្រី</option><option ${s.gender === 'ប្រុស' ? 'selected' : ''}>ប្រុស</option></select>`) : ''}
@@ -203,9 +218,12 @@ function render() {
       <input type="file" id="xl" accept=".xlsx,.xls,.csv" class="hidden">
     </div>
 
+    ${selS.size ? `<div class="flex flex-wrap items-center gap-3 mb-3 px-4 py-2.5 rounded-xl bg-red-50 border border-red-200">
+      <span class="text-sm font-semibold text-accent">បានជ្រើស ${khNum(selS.size)} នាក់</span><span class="flex-1"></span>
+      <button id="bulkDel" class="${C.btnAccent}">លុបដែលបានជ្រើស</button><button id="bulkClr" class="${C.cancel}">បោះបង់ការជ្រើស</button></div>` : ''}
     <div class="${C.card} overflow-hidden">
       ${rows.length ? `<div class="overflow-x-auto"><table class="w-full border-collapse responsive-table">
-        <thead><tr>${heads().map(h => `<th class="${C.th}">${h}</th>`).join('')}</tr></thead>
+        <thead><tr><th class="${C.th} w-10"><input type="checkbox" id="selAll" class="w-4 h-4 accent-brand" ${rows.length && rows.every(x => selS.has(String(x.id))) ? 'checked' : ''}></th>${heads().map(h => `<th class="${C.th}">${h}</th>`).join('')}</tr></thead>
         <tbody>${rows.map((s, i) => String(editingId) === String(s.id) ? editRow(s, i) : viewRow(s, i)).join('')}</tbody>
       </table></div>` : `<div class="p-12 text-center"><div class="text-4xl mb-2">📋</div><p class="text-slate-500">មិនទាន់មានសិស្សទេ។ បំពេញទម្រង់ខាងលើដើម្បីបន្ថែមសិស្សដំបូង។</p></div>`}
     </div>
@@ -214,14 +232,14 @@ function render() {
 
   const $ = id => document.getElementById(id);
   const sel = s => document.querySelectorAll(s);
-  $('tab-quarterly').onclick = () => { activeTab = 'quarterly'; editingId = null; render(); };
-  $('tab-monthly').onclick = () => { activeTab = 'monthly'; editingId = null; render(); };
+  $('tab-quarterly').onclick = () => { activeTab = 'quarterly'; editingId = null; selS.clear(); render(); };
+  $('tab-monthly').onclick = () => { activeTab = 'monthly'; editingId = null; selS.clear(); render(); };
   $('out').onclick = async () => { stopRealtime(); me = null; await sb.auth.signOut(); showLogin(); };
   $('af').onsubmit = addStudent;
   $('csv').onclick = exportExcel;
   $('imp').onclick = () => $('xl').click();
   $('xl').onchange = importExcel;
-  if ($('flt')) $('flt').onchange = e => { filter = e.target.value; render(); };
+  if ($('flt')) $('flt').onchange = e => { filter = e.target.value; selS.clear(); render(); };
 
   sel('button[data-edit]').forEach(b => b.onclick = () => { editingId = b.dataset.edit; render(); });
   sel('button[data-cancel]').forEach(b => b.onclick = () => { editingId = null; render(); });
@@ -232,6 +250,15 @@ function render() {
     if (error) return alert(error.message);
     await load(); render();
   });
+  sel('input[data-sel]').forEach(c => c.onchange = () => { c.checked ? selS.add(c.dataset.sel) : selS.delete(c.dataset.sel); rerender(); });
+  if ($('selAll')) $('selAll').onchange = e => { shown().forEach(x => e.target.checked ? selS.add(String(x.id)) : selS.delete(String(x.id))); rerender(); };
+  if ($('bulkClr')) $('bulkClr').onclick = () => { selS.clear(); rerender(); };
+  if ($('bulkDel')) $('bulkDel').onclick = async () => {
+    if (!confirm(`លុបសិស្ស ${selS.size} នាក់ដែលបានជ្រើស?`)) return;
+    const { error } = await sb.from(isQ() ? 'students' : 'monthly_students').delete().in('id', [...selS]);
+    if (error) return alert(error.message);
+    selS.clear(); await load(); render();
+  };
   if (isAdmin()) bindAdmin();
 }
 
@@ -389,8 +416,14 @@ function adminPanel() {
     <input id="t_p" minlength="6" placeholder="ពាក្យសម្ងាត់ (យ៉ាងតិច ៦)" required class="${C.input}">
     <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3">បន្ថែមគ្រូ</button>
   </form>
-  <div class="${C.card} overflow-x-auto mt-3"><table class="w-full"><tbody>${myTeachers().map(t => `
+  <div class="flex flex-wrap items-center gap-3 mt-3 mb-2 px-1">
+    <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="selAllT" class="w-4 h-4 accent-brand" ${myTeachers().length && myTeachers().every(t => selT.has(t.id)) ? 'checked' : ''}> ជ្រើសគ្រូទាំងអស់</label>
+    ${selT.size ? `<span class="text-sm font-semibold text-accent">បានជ្រើស ${khNum(selT.size)} នាក់</span><span class="flex-1"></span>
+      <button id="bulkDelT" class="${C.btnAccent}">លុបគ្រូដែលបានជ្រើស</button><button id="bulkClrT" class="${C.cancel}">បោះបង់ការជ្រើស</button>` : ''}
+  </div>
+  <div class="${C.card} overflow-x-auto"><table class="w-full"><tbody>${myTeachers().map(t => `
     <tr class="hover:bg-slate-50">
+      <td class="${C.td} w-10"><input type="checkbox" class="w-4 h-4 accent-brand" data-selt="${t.id}" ${selT.has(t.id) ? 'checked' : ''}></td>
       <td class="${C.td} font-medium">${esc(t.name)}</td>
       <td class="${C.td}"><span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-brand">គ្រូ</span></td>
       <td class="${C.td} text-right"><button class="${C.del}" data-t="${t.id}">លុប</button></td>
@@ -403,6 +436,22 @@ function bindAdmin() {
     const { error } = await sb.rpc('admin_create_teacher', { p_email: t_e.value.trim(), p_password: t_p.value, p_name: t_n.value.trim() });
     if (error) return alert('មិនអាចបង្កើតគ្រូបានទេ: ' + error.message);
     await load(); render();
+  };
+  const g = id => document.getElementById(id);
+  document.querySelectorAll('input[data-selt]').forEach(c => c.onchange = () => { c.checked ? selT.add(c.dataset.selt) : selT.delete(c.dataset.selt); rerender(); });
+  if (g('selAllT')) g('selAllT').onchange = e => { myTeachers().forEach(t => e.target.checked ? selT.add(t.id) : selT.delete(t.id)); rerender(); };
+  if (g('bulkClrT')) g('bulkClrT').onclick = () => { selT.clear(); rerender(); };
+  if (g('bulkDelT')) g('bulkDelT').onclick = async () => {
+    if (!confirm(`លុបគ្រូ ${selT.size} នាក់ រួមទាំងទិន្នន័យសិស្សរបស់ពួកគាត់ទាំងអស់?`)) return;
+    const ids = [...selT], failed = [];
+    for (const id of ids) {
+      const name = tname(id);
+      const { error } = await sb.rpc('admin_delete_teacher', { p_id: id });
+      if (error) failed.push(name + ': ' + error.message);
+    }
+    if (ids.includes(filter)) filter = '';
+    selT.clear(); await load(); render();
+    if (failed.length) alert('លុបមិនបានមួយចំនួន:\n' + failed.join('\n'));
   };
   document.querySelectorAll('button[data-t]').forEach(b => b.onclick = async () => {
     if (!confirm('លុបគ្រូនេះ រួមទាំងទិន្នន័យសិស្សរបស់គាត់ទាំងអស់?')) return;
