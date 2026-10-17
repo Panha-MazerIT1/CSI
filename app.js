@@ -1,10 +1,7 @@
 // ===== ដាក់ព័ត៌មាន Supabase របស់អ្នកនៅទីនេះ =====
 const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
-// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
-// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
-// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
-// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
+/// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
@@ -63,7 +60,7 @@ function formatKhmerDate(s) {
   return m ? `${khNum(+m[3])}-${KH_MONTHS[+m[2] - 1]}-${khNum(m[1])}` : (s || '');
 }
 
-let me, teachers = [], students = [], monthlyStudents = [], filter = '', activeTab = 'quarterly', editingId = null;
+let me, teachers = [], students = [], monthlyStudents = [], filter = '', activeTab = 'monthly', editingId = null;
 
 const selS = new Set(), selT = new Set();   // ការជ្រើសរើស: សិស្ស / គ្រូ
 const FORM_IDS = ['a_n', 'a_t', 'a_c', 'a_g', 'a_d', 'a_o', 'a_tn', 't_n', 't_e', 't_p'];
