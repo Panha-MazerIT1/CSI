@@ -4,6 +4,7 @@ const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
 // SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 // SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 // SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
+// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
@@ -196,8 +197,8 @@ function render() {
 
   <nav class="bg-white border-b border-slate-200 sticky top-0 z-10">
     <div class="max-w-7xl mx-auto px-4 py-2 flex gap-2">
-      <button id="tab-quarterly" class="px-5 py-2 rounded-full text-sm font-semibold transition ${q ? C.tabActive : C.tabInactive}">ប្រចាំត្រីមាស</button>
       <button id="tab-monthly" class="px-5 py-2 rounded-full text-sm font-semibold transition ${!q ? C.tabActive : C.tabInactive}">ប្រចាំខែ</button>
+      <button id="tab-quarterly" class="px-5 py-2 rounded-full text-sm font-semibold transition ${q ? C.tabActive : C.tabInactive}">ប្រចាំត្រីមាស</button>
     </div>
   </nav>
 
