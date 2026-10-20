@@ -2,6 +2,7 @@
 const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
 /// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
+// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
@@ -224,7 +225,7 @@ function render() {
       ${isAdmin() ? `<select id="flt" class="${C.input} max-w-xs"><option value="">គ្រូទាំងអស់</option>${tOpts(filter)}</select>` : ''}
       ${q ? `<button id="csv" class="${C.ghost}">ទាញយកប័ណ្ណសរសើរ (Excel)</button>` : ''}
       <button id="hon" class="${C.ghost}">ទាញយកតារាងកិត្តិយស (Excel)</button>
-      <button type="button" id="imp" class="${C.ghost}">នាំចូលពី Excel (ចំណាត់ថ្នាក់ ៥)</button>
+      <button type="button" id="imp" class="${C.ghost}">នាំចូលពី Excel</button>
       <input type="file" id="xl" accept=".xlsx,.xls,.csv" class="hidden">
     </div>
 
@@ -426,6 +427,8 @@ async function importExcel(e) {
   const q = isQ();
   try {
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+    const rs = readResultSheets(wb);
+    if (rs.some(x => x.found.length)) return openResultImport(rs);
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
     const hi = rows.findIndex(r => r.some(c => norm(c).includes('ឈ្មោះ')) && r.some(c => norm(c).includes('ចំណាត់')));
     if (hi < 0) return alert('រកមិនឃើញជួរក្បាលតារាង (ឈ្មោះ, ចំណាត់ថ្នាក់) ក្នុងឯកសារនេះទេ');
@@ -473,6 +476,75 @@ async function importExcel(e) {
     console.error(err);
     alert('មិនអាចអានឯកសារបានទេ: ' + err.message);
   }
+}
+
+// ---------- នាំចូលឯកសារលទ្ធផលប្រឡង (សន្លឹកនីមួយៗ = ថ្នាក់មួយ) → ផ្ទាំងប្រចាំខែ ----------
+const RESULT_RANKS = [1, 2, 3, 4, 5];   // យកចំណាត់ថ្នាក់ ១-៥ (ប្តូរជា [5] បើចង់យកតែលេខ ៥)
+const RANK_HEAD = /^ច.*ថ្នាក់/;           // ចំ.ថ្នាក់ · ចំណាត់ថ្នាក់ · ច.ថ្នាក់
+const cleanName = v => String(v ?? '').replace(/[\u200b\u200c\u200d]/g, '').replace(/\s+/g, ' ').trim();
+
+function readResultSheets(wb) {
+  const out = [];
+  wb.SheetNames.forEach(sn => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' });
+    const hi = rows.slice(0, 15).findIndex(r => r.some(c => norm(c).includes('គោត្តនាម')) && r.some(c => RANK_HEAD.test(norm(c))));
+    if (hi < 0) return;
+    const H = rows[hi].map(norm);
+    const cName = H.findIndex(h => h.includes('គោត្តនាម')), cRank = H.findIndex(h => RANK_HEAD.test(h));
+    const split = H[cName + 1] === '';   // សន្លឹកខ្លះបំបែកគោត្តនាម និងនាមជាពីរជួរ
+    const found = [], counts = {};
+    rows.slice(hi + 1).forEach(r => {
+      let name = cleanName(r[cName]);
+      const nx = split ? cleanName(r[cName + 1]) : '';
+      if (name && /[\u1780-\u17FF]/.test(nx)) name = cleanName(name + ' ' + nx);
+      const rk = Number(r[cRank]);
+      if (!name || !Number.isInteger(rk) || rk < 1) return;
+      counts[rk] = (counts[rk] || 0) + 1;
+      if (RESULT_RANKS.includes(rk)) found.push({ name, class_no: KH_DIGITS[rk] });
+    });
+    out.push({ sheet: sn, found, odd: Object.values(counts).some(n => n > 5) });
+  });
+  return out;
+}
+
+function openResultImport(sheets) {
+  const usable = sheets.filter(x => x.found.length);
+  const box = document.createElement('div');
+  box.className = 'fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4';
+  box.innerHTML = `<div class="${C.card} w-full max-w-2xl max-h-[90vh] overflow-auto p-5">
+    <h3 class="text-lg font-bold text-brand mb-1">នាំចូលលទ្ធផលប្រឡង → ផ្ទាំងប្រចាំខែ</h3>
+    <p class="text-sm text-slate-500 mb-4">យកតែសិស្សចំណាត់ថ្នាក់ ${RESULT_RANKS.map(khNum).join(' ')} ក្នុងសន្លឹកនីមួយៗ។ ជ្រើសសន្លឹកដែលត្រូវនាំចូល${isAdmin() ? ' និងគ្រូរបស់សន្លឹកនោះ (ឯកសារមិនមានឈ្មោះគ្រូទេ)' : ''}។</p>
+    <div class="grid gap-3">${usable.map((x, i) => `
+      <div class="border border-slate-200 rounded-xl p-3 ${x.odd ? 'bg-amber-50' : ''}">
+        <label class="flex items-center gap-3"><input type="checkbox" class="cb checked:bg-brand checked:border-brand" data-i="${i}" ${!x.odd && x.found.length >= 2 ? 'checked' : ''}>
+          <span class="font-semibold">${esc(x.sheet.trim())}</span><span class="text-xs text-slate-500">${khNum(x.found.length)} នាក់</span></label>
+        <p class="text-xs text-slate-500 mt-1 ml-8">${esc(x.found.slice(0, 3).map(f => f.name).join(', '))}${x.odd ? ' · ⚠ ចំណាត់ថ្នាក់ខុសប្រក្រតី (ច្រើនជាង ៥ នាក់មានចំណាត់ថ្នាក់ដូចគ្នា)' : ''}</p>
+        ${isAdmin() ? `<select data-t="${i}" class="${C.input} mt-2 ml-8 max-w-xs"><option value="">ជ្រើសរើសគ្រូ</option>${tOpts()}</select>` : ''}
+      </div>`).join('')}</div>
+    <div class="flex justify-end gap-2 mt-5"><button type="button" id="riCancel" class="${C.cancel}">បោះបង់</button><button type="button" id="riOk" class="${C.btnAccent}">នាំចូល</button></div></div>`;
+  document.body.appendChild(box);
+  box.querySelector('#riCancel').onclick = () => box.remove();
+  box.querySelector('#riOk').onclick = async () => {
+    const picked = [...box.querySelectorAll('input[data-i]:checked')].map(c => +c.dataset.i);
+    if (!picked.length) return alert('សូមជ្រើសសន្លឹកយ៉ាងហោចណាស់មួយ');
+    const seen = new Set(monthlyStudents.map(x => x.teacher_id + '|' + norm(x.name)));
+    const add = []; let dup = 0;
+    for (const i of picked) {
+      const tid = isAdmin() ? box.querySelector(`select[data-t="${i}"]`).value : me.id;
+      if (!tid) return alert(`សូមជ្រើសគ្រូសម្រាប់សន្លឹក "${usable[i].sheet.trim()}"`);
+      usable[i].found.forEach(f => {
+        const k = tid + '|' + norm(f.name);
+        if (seen.has(k)) { dup++; return; }
+        seen.add(k); add.push({ teacher_id: tid, name: f.name, class_no: f.class_no });
+      });
+    }
+    if (!add.length) { box.remove(); return alert('គ្មានសិស្សថ្មីត្រូវនាំចូលទេ (ស្ទួន ' + dup + ' នាក់)'); }
+    const { error } = await sb.from('monthly_students').insert(add);
+    if (error) return alert('នាំចូលមិនបានទេ: ' + error.message);
+    box.remove(); activeTab = 'monthly'; selS.clear();
+    await load(); render();
+    alert(`នាំចូលបាន ${add.length} នាក់` + (dup ? `\nស្ទួន (រំលង): ${dup}` : ''));
+  };
 }
 
 // ---------- គ្រប់គ្រងគ្រូ (admin) ----------
