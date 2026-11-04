@@ -1,13 +1,11 @@
 // ===== ដាក់ព័ត៌មាន Supabase របស់អ្នកនៅទីនេះ =====
 const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
-/// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
-// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
 
-// ✅ Font — ត្រូវដូចប្រព័ន្ធគ្រប់គ្រងវត្តមាន (ប្តូរតែឈ្មោះនៅបន្ទាត់ខាងក្រោម)
+// Font — ត្រូវដូចប្រព័ន្ធគ្រប់គ្រងវត្តមាន (ប្តូរតែឈ្មោះនៅបន្ទាត់ខាងក្រោម)
 const APP_FONT = 'Battambang';
 document.head.insertAdjacentHTML('beforeend',
   `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${APP_FONT.replace(/ /g, '+')}:wght@400;700&display=swap">` +
@@ -85,6 +83,27 @@ const byTeacherThenName = (a, b) => (tIndex(a.teacher_id) - tIndex(b.teacher_id)
 const T_CLR = ['bg-rose-100 text-rose-800', 'bg-sky-100 text-sky-800', 'bg-emerald-100 text-emerald-800', 'bg-amber-100 text-amber-800', 'bg-violet-100 text-violet-800', 'bg-teal-100 text-teal-800', 'bg-orange-100 text-orange-800', 'bg-indigo-100 text-indigo-800'];
 const teacherPill = id => `<span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${T_CLR[tIndex(id) % T_CLR.length]}">${esc(tname(id))}</span>`;
 
+// ---------- Deadline (ពេលកំណត់បិទការបំពេញ) ----------
+const DEADLINE_MSG = 'ផុតកំណត់ពេលបំពេញទិន្នន័យហើយ។ សូមទាក់ទងអ្នកគ្រប់គ្រង។';
+
+async function deadlinePassed() {
+  const { data } = await sb.from('app_settings').select('deadline').eq('id', 1).maybeSingle();
+  return !!(data && data.deadline && new Date() >= new Date(data.deadline));
+}
+
+// គ្រូធម្មតា (មិនមែន admin) ត្រូវចាក់ចេញ បើដល់ម៉ោងកំណត់ — ត្រឡប់ true បើបានចាក់ចេញ
+async function enforceDeadline() {
+  if (!me || isAdmin()) return false;
+  let passed = false;
+  try { passed = await deadlinePassed(); } catch (e) { console.error(e); return false; }
+  if (!passed) return false;
+  stopRealtime();
+  me = null;
+  await sb.auth.signOut();
+  showLogin(DEADLINE_MSG);
+  return true;
+}
+
 // ---------- ចូលប្រព័ន្ធ ----------
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
@@ -95,6 +114,7 @@ async function init() {
     return showLogin('គណនីនេះមិនទាន់មានសិទ្ធិប្រើប្រាស់ទេ សូមទាក់ទងអ្នកគ្រប់គ្រង');
   }
   me = p;
+  if (await enforceDeadline()) return;
   await load();
   render();
   startRealtime();
@@ -290,6 +310,8 @@ let rtChannel = null, rtTimer = null, rtPoll = null;
 const formBusy = () => editingId != null || ['a_n', 'a_o', 't_n', 't_e', 't_p'].some(id => (document.getElementById(id)?.value || '').trim());
 
 async function refresh() {
+  if (!me) return;
+  if (await enforceDeadline()) return;   // ដល់ម៉ោងកំណត់ → ចាក់គ្រូចេញ (ទោះកំពុងវាយក៏ដោយ)
   if (!me || formBusy()) return;
   await load();
   render();
@@ -325,7 +347,7 @@ async function addStudent(e) {
   const row = { teacher_id: isAdmin() ? a_t.value : me.id, name: a_n.value.trim(), class_no: a_c.value };
   if (isQ()) Object.assign(row, { gender: a_g.value, dob: a_d.value || null, course: a_o.value.trim() });
   const { error } = await sb.from(isQ() ? 'students' : 'monthly_students').insert(row);
-  if (error) return alert(error.message);
+  if (error) { if (await enforceDeadline()) return; return alert(error.message); }
   await load(); render();
 }
 
@@ -335,7 +357,7 @@ async function saveEdit(id) {
   if (isQ()) Object.assign(row, { gender: v('g').value, dob: v('d').value || null, course: v('o').value.trim() });
   if (isAdmin()) row.teacher_id = v('t').value;
   const { error } = await sb.from(isQ() ? 'students' : 'monthly_students').update(row).eq('id', id);
-  if (error) return alert('មិនអាចរក្សាទុកបានទេ: ' + error.message);
+  if (error) { if (await enforceDeadline()) return; return alert('មិនអាចរក្សាទុកបានទេ: ' + error.message); }
   editingId = null;
   await load(); render();
 }
@@ -468,7 +490,7 @@ async function importExcel(e) {
     const table = q ? 'students' : 'monthly_students';
     for (let i = 0; i < toAdd.length; i += 200) {
       const { error } = await sb.from(table).insert(toAdd.slice(i, i + 200));
-      if (error) return alert('នាំចូលមិនបានទេ: ' + error.message);
+      if (error) { if (await enforceDeadline()) return; return alert('នាំចូលមិនបានទេ: ' + error.message); }
     }
     await load(); render();
     alert(`នាំចូលបាន ${toAdd.length} នាក់\n` + summary);
@@ -540,7 +562,7 @@ function openResultImport(sheets) {
     }
     if (!add.length) { box.remove(); return alert('គ្មានសិស្សថ្មីត្រូវនាំចូលទេ (ស្ទួន ' + dup + ' នាក់)'); }
     const { error } = await sb.from('monthly_students').insert(add);
-    if (error) return alert('នាំចូលមិនបានទេ: ' + error.message);
+    if (error) { if (await enforceDeadline()) { box.remove(); return; } return alert('នាំចូលមិនបានទេ: ' + error.message); }
     box.remove(); activeTab = 'monthly'; selS.clear();
     await load(); render();
     alert(`នាំចូលបាន ${add.length} នាក់` + (dup ? `\nស្ទួន (រំលង): ${dup}` : ''));
@@ -550,6 +572,17 @@ function openResultImport(sheets) {
 // ---------- គ្រប់គ្រងគ្រូ (admin) ----------
 function adminPanel() {
   return `
+  <h2 class="font-bold text-brand text-base sm:text-lg mt-8 mb-3 flex items-center gap-2"><span class="w-1 h-5 bg-accent rounded"></span>កំណត់ពេលបិទការបំពេញទិន្នន័យ</h2>
+  <div class="${C.card} p-5">
+    <p class="text-sm text-slate-600 mb-3">ដល់ម៉ោងនេះ គ្រូធម្មតាទាំងអស់នឹងមិនអាចចូលប្រើ បំពេញ ឬកែទិន្នន័យបានទេ (អ្នកគ្រប់គ្រងនៅតែប្រើបាន)។</p>
+    <div class="flex flex-wrap items-center gap-2">
+      <input type="datetime-local" id="dl" class="${C.input} max-w-xs">
+      <button type="button" id="dlSave" class="${C.btn}">រក្សាទុក</button>
+      <button type="button" id="dlClear" class="${C.ghost}">លុបការកំណត់ពេល</button>
+    </div>
+    <p id="dlStatus" class="text-sm mt-3 text-slate-500">កំពុងទាញយក...</p>
+  </div>
+
   <h2 class="font-bold text-brand text-base sm:text-lg mt-8 mb-3 flex items-center gap-2"><span class="w-1 h-5 bg-accent rounded"></span>គ្រប់គ្រងគ្រូរបស់ខ្ញុំ</h2>
   <form id="tf" class="${C.form}">
     <input id="t_n" placeholder="ឈ្មោះគ្រូ" required class="${C.input}">
@@ -571,6 +604,29 @@ function adminPanel() {
     </tr>`).join('')}</tbody></table></div>`;
 }
 
+function fmtDeadline(iso) {
+  const d = new Date(iso);
+  const p = n => String(n).padStart(2, '0');
+  return `${khNum(d.getDate())}-${KH_MONTHS[d.getMonth()]}-${khNum(d.getFullYear())} ម៉ោង ${khNum(p(d.getHours()))}:${khNum(p(d.getMinutes()))}`;
+}
+
+async function loadDeadlineUI() {
+  const el = document.getElementById('dl'), st = document.getElementById('dlStatus');
+  if (!el || !st) return;
+  const { data, error } = await sb.from('app_settings').select('deadline').eq('id', 1).maybeSingle();
+  if (error) { st.textContent = 'មិនអាចទាញយកការកំណត់ពេលបានទេ: ' + error.message + ' (ត្រូវ run SQL app_settings ជាមុនសិន)'; return; }
+  if (data && data.deadline) {
+    const d = new Date(data.deadline);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    el.value = d.toISOString().slice(0, 16);
+    const passed = new Date() >= new Date(data.deadline);
+    st.innerHTML = `ពេលកំណត់: <b>${fmtDeadline(data.deadline)}</b> · ` + (passed ? '<span class="text-accent font-semibold">បានបិទហើយ</span>' : '<span class="text-emerald-600 font-semibold">នៅបើក</span>');
+  } else {
+    el.value = '';
+    st.textContent = 'មិនទាន់កំណត់ពេលបិទទេ (គ្រូបំពេញបានជានិច្ច)';
+  }
+}
+
 function bindAdmin() {
   tf.onsubmit = async e => {
     e.preventDefault();
@@ -579,6 +635,22 @@ function bindAdmin() {
     await load(); render();
   };
   const g = id => document.getElementById(id);
+
+  loadDeadlineUI();
+  g('dlSave').onclick = async () => {
+    if (!g('dl').value) return alert('សូមជ្រើសកាលបរិច្ឆេទ និងម៉ោង');
+    const when = new Date(g('dl').value);
+    if (when <= new Date() && !confirm('ម៉ោងនេះកន្លងផុតហើយ។ គ្រូទាំងអស់នឹងបិទភ្លាម។ បន្ត?')) return;
+    const { error } = await sb.from('app_settings').update({ deadline: when.toISOString() }).eq('id', 1);
+    if (error) return alert('រក្សាទុកមិនបានទេ: ' + error.message);
+    loadDeadlineUI();
+  };
+  g('dlClear').onclick = async () => {
+    const { error } = await sb.from('app_settings').update({ deadline: null }).eq('id', 1);
+    if (error) return alert('មិនអាចលុបបានទេ: ' + error.message);
+    loadDeadlineUI();
+  };
+
   document.querySelectorAll('input[data-selt]').forEach(c => c.onchange = () => { c.checked ? selT.add(c.dataset.selt) : selT.delete(c.dataset.selt); rerender(); });
   if (g('selAllT')) g('selAllT').onchange = e => { myTeachers().forEach(t => e.target.checked ? selT.add(t.id) : selT.delete(t.id)); rerender(); };
   if (g('bulkClrT')) g('bulkClrT').onclick = () => { selT.clear(); rerender(); };
