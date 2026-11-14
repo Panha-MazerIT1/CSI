@@ -1,11 +1,12 @@
 // ===== ដាក់ព័ត៌មាន Supabase របស់អ្នកនៅទីនេះ =====
 const SUPABASE_URL = "https://fyrofappoidfaogzhdlm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dc-70zNaPuGJHsuolZvfEw_CjiUJ8ku";
+// SUPABASE_URL និង SUPABASE_KEY ត្រូវមកពី config.js (ដូចមុន)
 const LOGO_URL = 'https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE1NjY1LCJleHAiOjE4MjMxNTE2NjV9.8qEkk5pKOO0siU7h7p8sp22LhTOinerfqDq027lJLxqhEDup_Qv9Ct8FkFPa1aiU2RsU7gU_fKPQdkc0BVONQw';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $app = document.getElementById('app');
 
-// Font — ត្រូវដូចប្រព័ន្ធគ្រប់គ្រងវត្តមាន (ប្តូរតែឈ្មោះនៅបន្ទាត់ខាងក្រោម)
+// ✅ Font — ត្រូវដូចប្រព័ន្ធគ្រប់គ្រងវត្តមាន (ប្តូរតែឈ្មោះនៅបន្ទាត់ខាងក្រោម)
 const APP_FONT = 'Battambang';
 document.head.insertAdjacentHTML('beforeend',
   `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${APP_FONT.replace(/ /g, '+')}:wght@400;700&display=swap">` +
@@ -61,6 +62,7 @@ function formatKhmerDate(s) {
 
 let me, teachers = [], students = [], monthlyStudents = [], filter = '', activeTab = 'monthly', editingId = null;
 
+let myDeadline = null;   // ពេលកំណត់ (ISO) · គ្រូ: ពី admin របស់ខ្លួន · admin: របស់ខ្លួនឯង
 const selS = new Set(), selT = new Set();   // ការជ្រើសរើស: សិស្ស / គ្រូ
 const FORM_IDS = ['a_n', 'a_t', 'a_c', 'a_g', 'a_d', 'a_o', 'a_tn', 't_n', 't_e', 't_p'];
 // render ឡើងវិញ តែរក្សាអ្វីដែលកំពុងវាយក្នុងទម្រង់
@@ -83,25 +85,56 @@ const byTeacherThenName = (a, b) => (tIndex(a.teacher_id) - tIndex(b.teacher_id)
 const T_CLR = ['bg-rose-100 text-rose-800', 'bg-sky-100 text-sky-800', 'bg-emerald-100 text-emerald-800', 'bg-amber-100 text-amber-800', 'bg-violet-100 text-violet-800', 'bg-teal-100 text-teal-800', 'bg-orange-100 text-orange-800', 'bg-indigo-100 text-indigo-800'];
 const teacherPill = id => `<span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${T_CLR[tIndex(id) % T_CLR.length]}">${esc(tname(id))}</span>`;
 
-// ---------- Deadline (ពេលកំណត់បិទការបំពេញ) ----------
-const DEADLINE_MSG = 'ផុតកំណត់ពេលបំពេញទិន្នន័យហើយ។ សូមទាក់ទងអ្នកគ្រប់គ្រង។';
-
-async function deadlinePassed() {
-  const { data } = await sb.from('app_settings').select('deadline').eq('id', 1).maybeSingle();
-  return !!(data && data.deadline && new Date() >= new Date(data.deadline));
+// ---------- រូបថតសិស្ស (Supabase Storage · bucket ឯកជន) ----------
+const PHOTO_BUCKET = 'student-photos';
+const photoUrls = {};   // path -> { url, exp }
+async function loadPhotos() {
+  const now = Date.now();
+  const need = [...new Set([...students, ...monthlyStudents].map(x => x.photo_path).filter(p => p && !(photoUrls[p] && photoUrls[p].exp > now + 600000)))];
+  if (!need.length) return;
+  const { data } = await sb.storage.from(PHOTO_BUCKET).createSignedUrls(need, 3600);
+  (data || []).forEach(d => { if (d.signedUrl) photoUrls[d.path] = { url: d.signedUrl, exp: now + 3600000 }; });
 }
+async function resizeImage(file, max = 480, quality = 0.85) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, 'image/jpeg', quality));
+}
+async function uploadPhoto(teacherId, studentId, file, oldPath, table = 'students') {
+  const blob = await resizeImage(file);
+  const path = `${teacherId}/${studentId}-${Date.now()}.jpg`;
+  const up = await sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: 'image/jpeg' });
+  if (up.error) throw up.error;
+  const { error } = await sb.from(table).update({ photo_path: path }).eq('id', studentId);
+  if (error) throw error;
+  if (oldPath) sb.storage.from(PHOTO_BUCKET).remove([oldPath]);
+}
+function removePhotos(ids) {
+  const set = new Set(ids.map(String));
+  const paths = (isQ() ? students : monthlyStudents).filter(x => set.has(String(x.id)) && x.photo_path).map(x => x.photo_path);
+  if (paths.length) sb.storage.from(PHOTO_BUCKET).remove(paths);
+}
+const photoCell = (x, size = 'w-10 h-10', zoom = true) => {
+  const u = x.photo_path && photoUrls[x.photo_path];
+  return u
+    ? `<img src="${u.url}" alt="" class="${size} rounded-full object-cover border border-slate-200 flex-none ${zoom ? 'cursor-zoom-in' : ''}" ${zoom ? `onclick="window.open(this.src,'_blank')"` : ''}>`
+    : `<span class="${size} rounded-full bg-slate-100 text-slate-400 grid place-items-center text-xs flex-none">${esc([...x.name][0] || '?')}</span>`;
+};
 
-// គ្រូធម្មតា (មិនមែន admin) ត្រូវចាក់ចេញ បើដល់ម៉ោងកំណត់ — ត្រឡប់ true បើបានចាក់ចេញ
-async function enforceDeadline() {
-  if (!me || isAdmin()) return false;
-  let passed = false;
-  try { passed = await deadlinePassed(); } catch (e) { console.error(e); return false; }
-  if (!passed) return false;
-  stopRealtime();
-  me = null;
-  await sb.auth.signOut();
-  showLogin(DEADLINE_MSG);
-  return true;
+// ---------- ពេលកំណត់ (Deadline) ----------
+const LOCK_MSG = 'ផុតកំណត់ពេលបំពេញទិន្នន័យហើយ។ សូមទាក់ទងអ្នកគ្រប់គ្រង';
+const isLocked = async () => (await sb.rpc('is_locked')).data === true;
+const p2 = n => String(n).padStart(2, '0');
+const fmtDeadline = iso => { const d = new Date(iso); return `${formatKhmerDate(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`)} ម៉ោង ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+const toLocalInput = iso => { if (!iso) return ''; const d = new Date(iso); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+const deadlineBanner = () => !myDeadline ? '' : `<div class="mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">⏰ ពេលកំណត់បំពេញទិន្នន័យ៖ <b>${fmtDeadline(myDeadline)}</b>${isAdmin() ? ' (បន្ទាប់ពីពេលនេះ គ្រូនឹងមិនអាចចូលប្រើបានទេ)' : ''}</div>`;
+async function saveDeadline(iso) {
+  const { error } = await sb.rpc('set_deadline', { p_deadline: iso });
+  if (error) return alert('មិនអាចរក្សាទុកបានទេ: ' + error.message);
+  me.deadline = iso; myDeadline = iso; render();
 }
 
 // ---------- ចូលប្រព័ន្ធ ----------
@@ -114,7 +147,7 @@ async function init() {
     return showLogin('គណនីនេះមិនទាន់មានសិទ្ធិប្រើប្រាស់ទេ សូមទាក់ទងអ្នកគ្រប់គ្រង');
   }
   me = p;
-  if (await enforceDeadline()) return;
+  if (me.role === 'teacher' && await isLocked()) { await sb.auth.signOut(); me = null; return showLogin(LOCK_MSG); }
   await load();
   render();
   startRealtime();
@@ -146,6 +179,7 @@ function showLogin(err = '') {
 
 // ---------- ទាញទិន្នន័យ (តែរបស់ខ្លួន និងគ្រូរបស់ខ្លួន) ----------
 async function load() {
+  myDeadline = me.role === 'teacher' ? ((await sb.rpc('my_deadline')).data || null) : (me.deadline || null);
   const { data: t, error } = await sb.from('profiles').select('*').or(`id.eq.${me.id},parent_admin_id.eq.${me.id}`);
   if (error) alert('មិនអាចទាញយកគ្រូបានទេ: ' + error.message);
   teachers = (t || []).sort(sortByKhmerName);
@@ -156,6 +190,7 @@ async function load() {
   const cur = new Set((isQ() ? students : monthlyStudents).map(x => String(x.id)));
   [...selS].forEach(id => { if (!cur.has(id)) selS.delete(id); });
   [...selT].forEach(id => { if (!teachers.some(t => t.id === id)) selT.delete(id); });
+  await loadPhotos();
 }
 
 // ---------- បង្ហាញ ----------
@@ -172,7 +207,7 @@ function viewRow(s, i, groupStart = false) {
   return `<tr class="bg-white hover:bg-brand/5 transition ${groupStart ? 'border-t-2 border-slate-300' : ''}">
     ${td('ជ្រើស', `<input type="checkbox" class="cb checked:bg-brand checked:border-brand" data-sel="${s.id}" ${selS.has(String(s.id)) ? 'checked' : ''}>`)}
     ${td('ល.រ', i + 1)}
-    ${td('ឈ្មោះ', esc(s.name), 'font-medium')}
+    ${td('ឈ្មោះ', q ? `<div class="flex items-center gap-3">${photoCell(s)}<span>${esc(s.name)}</span></div>` : esc(s.name), 'font-medium')}
     ${q ? td('ភេទ', esc(s.gender)) : ''}
     ${td('ចំណាត់ថ្នាក់', rankBadge(s.class_no))}
     ${q ? td('ថ្ងៃខែឆ្នាំកំណើត', esc(formatKhmerDate(s.dob))) + td('វគ្គសិក្សា', esc(s.course), 'text-slate-600 text-xs') : ''}
@@ -186,7 +221,7 @@ function editRow(s, i) {
   return `<tr class="bg-yellow-50">
     ${td('ជ្រើស', '')}
     ${td('ល.រ', i + 1)}
-    ${td('ឈ្មោះ', `<input id="e_n_${s.id}" value="${esc(s.name)}" class="${C.input}">`)}
+    ${td('ឈ្មោះ', `<input id="e_n_${s.id}" value="${esc(s.name)}" class="${C.input}">${q ? `<input type="file" id="e_p_${s.id}" accept="image/*" class="text-xs mt-2 max-w-[220px]" title="ប្តូររូបថត">` : ''}`)}
     ${q ? td('ភេទ', `<select id="e_g_${s.id}" class="${C.input}"><option ${s.gender === 'ស្រី' ? 'selected' : ''}>ស្រី</option><option ${s.gender === 'ប្រុស' ? 'selected' : ''}>ប្រុស</option></select>`) : ''}
     ${td('ចំណាត់ថ្នាក់', `<select id="e_c_${s.id}" class="${C.input}">${CLASS_RANKS.map(r => `<option ${s.class_no === r ? 'selected' : ''}>${r}</option>`).join('')}</select>`)}
     ${q ? td('ថ្ងៃខែឆ្នាំកំណើត', `<input id="e_d_${s.id}" type="date" value="${s.dob || ''}" class="${C.input}">`) + td('វគ្គសិក្សា', `<input id="e_o_${s.id}" value="${esc(s.course)}" class="${C.input}">`) : ''}
@@ -221,6 +256,7 @@ function render() {
   </nav>
 
   <main class="max-w-7xl mx-auto my-4 sm:my-6 px-3 sm:px-4">
+    ${deadlineBanner()}
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
       ${stat('សិស្សប្រចាំត្រីមាស', students.length, 'bg-brand')}
       ${stat('សិស្សប្រចាំខែ', monthlyStudents.length, 'bg-accent')}
@@ -236,6 +272,7 @@ function render() {
         <input id="a_d" type="date" aria-label="ថ្ងៃខែឆ្នាំកំណើត" class="${C.input}">
         <input id="a_o" list="cl" placeholder="វគ្គសិក្សា" class="${C.input}">
         <datalist id="cl">${COURSES.map(c => `<option value="${esc(c)}">`).join('')}</datalist>` : ''}
+      <label class="flex items-center gap-2 text-sm text-slate-600 ${C.input}">រូបថត<input id="a_p" type="file" accept="image/*" class="text-xs min-w-0"></label>
       ${!isAdmin() ? `<input id="a_tn" placeholder="ឈ្មោះគ្រូ" value="${esc(me.name)}" class="${C.input}">` : ''}
       <button class="${C.btnAccent} sm:col-span-2 lg:col-span-3">បន្ថែមសិស្ស</button>
     </form>
@@ -256,7 +293,7 @@ function render() {
       ${rows.length && q ? `<div class="overflow-x-auto"><table class="w-full border-collapse responsive-table">
         <thead><tr><th class="${C.th} w-10"><input type="checkbox" id="selAll" class="cb checked:bg-brand checked:border-brand" ${rows.length && rows.every(x => selS.has(String(x.id))) ? 'checked' : ''}></th>${heads().map(h => `<th class="${C.th}">${h}</th>`).join('')}</tr></thead>
         <tbody>${rows.map((s, i) => String(editingId) === String(s.id) ? editRow(s, i) : viewRow(s, i, i > 0 && rows[i - 1].teacher_id !== s.teacher_id)).join('')}</tbody>
-      </table></div>` : rows.length ? gridHtml(rows) : `<div class="p-12 text-center"><div class="text-4xl mb-2">📋</div><p class="text-slate-500">មិនទាន់មានសិស្សទេ។ បំពេញទម្រង់ខាងលើដើម្បីបន្ថែមសិស្សដំបូង។</p></div>`}
+      </table></div>` : rows.length ? gridHtml(rows) : `<div class="p-12 text-center"><div class="text-4xl mb-2"></div><p class="text-slate-500">មិនទាន់មានសិស្សទេ។ បំពេញទម្រង់ខាងលើដើម្បីបន្ថែមសិស្សដំបូង។</p></div>`}
     </div>
     ${isAdmin() ? adminPanel() : ''}
   </main>
@@ -281,6 +318,7 @@ function render() {
     if (!confirm('លុបសិស្សនេះ?')) return;
     const { error } = await sb.from(isQ() ? 'students' : 'monthly_students').delete().eq('id', b.dataset.id);
     if (error) return alert(error.message);
+    removePhotos([b.dataset.id]);
     await load(); render();
   });
   sel('input[data-sel]').forEach(c => c.onchange = () => { c.checked ? selS.add(c.dataset.sel) : selS.delete(c.dataset.sel); rerender(); });
@@ -290,8 +328,23 @@ function render() {
     if (!confirm(`លុបសិស្ស ${selS.size} នាក់ដែលបានជ្រើស?`)) return;
     const { error } = await sb.from(isQ() ? 'students' : 'monthly_students').delete().in('id', [...selS]);
     if (error) return alert(error.message);
+    removePhotos([...selS]);
     selS.clear(); await load(); render();
   };
+  sel('button[data-pho]').forEach(b => b.onclick = e => {
+    e.preventDefault();
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = async () => {
+      const f = inp.files[0];
+      if (!f) return;
+      const cur = monthlyStudents.find(x => String(x.id) === b.dataset.pho);
+      try { await uploadPhoto(cur.teacher_id, cur.id, f, cur.photo_path, 'monthly_students'); }
+      catch (err) { return alert('រូបថតមិនបានចូលទេ: ' + err.message); }
+      await load(); render();
+    };
+    inp.click();
+  });
   sel('button[data-ren]').forEach(b => b.onclick = async e => {
     e.preventDefault();
     const cur = monthlyStudents.find(x => String(x.id) === b.dataset.ren);
@@ -307,12 +360,12 @@ function render() {
 // ---------- Auto reload (Realtime + ពិនិត្យរាល់ ៦០ វិនាទី) ----------
 let rtChannel = null, rtTimer = null, rtPoll = null;
 // កុំ reload ពេលកំពុងកែ ឬកំពុងវាយក្នុងទម្រង់ ដើម្បីកុំឲ្យបាត់អ្វីដែលបានវាយ
-const formBusy = () => editingId != null || ['a_n', 'a_o', 't_n', 't_e', 't_p'].some(id => (document.getElementById(id)?.value || '').trim());
+const formBusy = () => editingId != null || ['a_n', 'a_o', 'a_p', 't_n', 't_e', 't_p'].some(id => (document.getElementById(id)?.value || '').trim());
 
 async function refresh() {
   if (!me) return;
-  if (await enforceDeadline()) return;   // ដល់ម៉ោងកំណត់ → ចាក់គ្រូចេញ (ទោះកំពុងវាយក៏ដោយ)
-  if (!me || formBusy()) return;
+  if (me.role === 'teacher' && await isLocked()) { stopRealtime(); me = null; await sb.auth.signOut(); return showLogin(LOCK_MSG); }
+  if (formBusy()) return;
   await load();
   render();
 }
@@ -346,8 +399,10 @@ async function addStudent(e) {
   }
   const row = { teacher_id: isAdmin() ? a_t.value : me.id, name: a_n.value.trim(), class_no: a_c.value };
   if (isQ()) Object.assign(row, { gender: a_g.value, dob: a_d.value || null, course: a_o.value.trim() });
-  const { error } = await sb.from(isQ() ? 'students' : 'monthly_students').insert(row);
-  if (error) { if (await enforceDeadline()) return; return alert(error.message); }
+  const file = document.getElementById('a_p')?.files[0];
+  const { data: ins, error } = await sb.from(isQ() ? 'students' : 'monthly_students').insert(row).select('id').single();
+  if (error) return alert(error.message);
+  if (file) { try { await uploadPhoto(row.teacher_id, ins.id, file, null, isQ() ? 'students' : 'monthly_students'); } catch (err) { alert('រក្សាទុកសិស្សរួច ប៉ុន្តែរូបថតមិនបានចូលទេ: ' + err.message); } }
   await load(); render();
 }
 
@@ -357,7 +412,12 @@ async function saveEdit(id) {
   if (isQ()) Object.assign(row, { gender: v('g').value, dob: v('d').value || null, course: v('o').value.trim() });
   if (isAdmin()) row.teacher_id = v('t').value;
   const { error } = await sb.from(isQ() ? 'students' : 'monthly_students').update(row).eq('id', id);
-  if (error) { if (await enforceDeadline()) return; return alert('មិនអាចរក្សាទុកបានទេ: ' + error.message); }
+  if (error) return alert('មិនអាចរក្សាទុកបានទេ: ' + error.message);
+  const pf = isQ() ? document.getElementById(`e_p_${id}`)?.files[0] : null;
+  if (pf) {
+    const cur = students.find(x => String(x.id) === String(id));
+    try { await uploadPhoto(row.teacher_id || cur.teacher_id, id, pf, cur.photo_path); } catch (err) { alert('រូបថតមិនបានចូលទេ: ' + err.message); }
+  }
   editingId = null;
   await load(); render();
 }
@@ -379,7 +439,9 @@ function gridRows(rows) {
 
 const chip = s => `<label class="inline-flex items-center gap-2 bg-slate-50 hover:bg-white border border-slate-200 rounded-full pl-2.5 pr-1.5 py-1 text-sm">
   <input type="checkbox" class="cb checked:bg-brand checked:border-brand" data-sel="${s.id}" ${selS.has(String(s.id)) ? 'checked' : ''}>
+  ${photoCell(s, 'w-8 h-8', false)}
   <span>${esc(s.name)}</span>
+  <button type="button" class="text-brand/70 hover:text-brand px-1 text-xs" data-pho="${s.id}" title="ប្តូររូបថត"></button>
   <button type="button" class="text-brand/70 hover:text-brand px-1 text-xs" data-ren="${s.id}" title="កែឈ្មោះ">✎</button></label>`;
 
 function gridHtml(rows) {
@@ -490,7 +552,7 @@ async function importExcel(e) {
     const table = q ? 'students' : 'monthly_students';
     for (let i = 0; i < toAdd.length; i += 200) {
       const { error } = await sb.from(table).insert(toAdd.slice(i, i + 200));
-      if (error) { if (await enforceDeadline()) return; return alert('នាំចូលមិនបានទេ: ' + error.message); }
+      if (error) return alert('នាំចូលមិនបានទេ: ' + error.message);
     }
     await load(); render();
     alert(`នាំចូលបាន ${toAdd.length} នាក់\n` + summary);
@@ -562,7 +624,7 @@ function openResultImport(sheets) {
     }
     if (!add.length) { box.remove(); return alert('គ្មានសិស្សថ្មីត្រូវនាំចូលទេ (ស្ទួន ' + dup + ' នាក់)'); }
     const { error } = await sb.from('monthly_students').insert(add);
-    if (error) { if (await enforceDeadline()) { box.remove(); return; } return alert('នាំចូលមិនបានទេ: ' + error.message); }
+    if (error) return alert('នាំចូលមិនបានទេ: ' + error.message);
     box.remove(); activeTab = 'monthly'; selS.clear();
     await load(); render();
     alert(`នាំចូលបាន ${add.length} នាក់` + (dup ? `\nស្ទួន (រំលង): ${dup}` : ''));
@@ -573,16 +635,12 @@ function openResultImport(sheets) {
 function adminPanel() {
   return `
   <h2 class="font-bold text-brand text-base sm:text-lg mt-8 mb-3 flex items-center gap-2"><span class="w-1 h-5 bg-accent rounded"></span>កំណត់ពេលបិទការបំពេញទិន្នន័យ</h2>
-  <div class="${C.card} p-5">
-    <p class="text-sm text-slate-600 mb-3">ដល់ម៉ោងនេះ គ្រូធម្មតាទាំងអស់នឹងមិនអាចចូលប្រើ បំពេញ ឬកែទិន្នន័យបានទេ (អ្នកគ្រប់គ្រងនៅតែប្រើបាន)។</p>
-    <div class="flex flex-wrap items-center gap-2">
-      <input type="datetime-local" id="dl" class="${C.input} max-w-xs">
-      <button type="button" id="dlSave" class="${C.btn}">រក្សាទុក</button>
-      <button type="button" id="dlClear" class="${C.ghost}">លុបការកំណត់ពេល</button>
-    </div>
-    <p id="dlStatus" class="text-sm mt-3 text-slate-500">កំពុងទាញយក...</p>
-  </div>
-
+  <form id="dlf" class="${C.form}">
+    <input id="d_at" type="datetime-local" value="${toLocalInput(me.deadline)}" aria-label="ថ្ងៃ និងម៉ោងកំណត់" class="${C.input}">
+    <button class="${C.btnAccent}">រក្សាទុកពេលកំណត់</button>
+    <button type="button" id="d_clear" class="${C.cancel}">លុបពេលកំណត់ (បើកជានិច្ច)</button>
+  </form>
+  <p class="text-xs text-slate-500 mt-2 px-1">ក្រោយពេលនេះ គ្រូរបស់អ្នកមិនអាចចូល បំពេញ ឬកែទិន្នន័យបានទេ។ អ្នកគ្រប់គ្រងមិនត្រូវបានបិទទេ។</p>
   <h2 class="font-bold text-brand text-base sm:text-lg mt-8 mb-3 flex items-center gap-2"><span class="w-1 h-5 bg-accent rounded"></span>គ្រប់គ្រងគ្រូរបស់ខ្ញុំ</h2>
   <form id="tf" class="${C.form}">
     <input id="t_n" placeholder="ឈ្មោះគ្រូ" required class="${C.input}">
@@ -604,30 +662,13 @@ function adminPanel() {
     </tr>`).join('')}</tbody></table></div>`;
 }
 
-function fmtDeadline(iso) {
-  const d = new Date(iso);
-  const p = n => String(n).padStart(2, '0');
-  return `${khNum(d.getDate())}-${KH_MONTHS[d.getMonth()]}-${khNum(d.getFullYear())} ម៉ោង ${khNum(p(d.getHours()))}:${khNum(p(d.getMinutes()))}`;
-}
-
-async function loadDeadlineUI() {
-  const el = document.getElementById('dl'), st = document.getElementById('dlStatus');
-  if (!el || !st) return;
-  const { data, error } = await sb.from('app_settings').select('deadline').eq('id', 1).maybeSingle();
-  if (error) { st.textContent = 'មិនអាចទាញយកការកំណត់ពេលបានទេ: ' + error.message + ' (ត្រូវ run SQL app_settings ជាមុនសិន)'; return; }
-  if (data && data.deadline) {
-    const d = new Date(data.deadline);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    el.value = d.toISOString().slice(0, 16);
-    const passed = new Date() >= new Date(data.deadline);
-    st.innerHTML = `ពេលកំណត់: <b>${fmtDeadline(data.deadline)}</b> · ` + (passed ? '<span class="text-accent font-semibold">បានបិទហើយ</span>' : '<span class="text-emerald-600 font-semibold">នៅបើក</span>');
-  } else {
-    el.value = '';
-    st.textContent = 'មិនទាន់កំណត់ពេលបិទទេ (គ្រូបំពេញបានជានិច្ច)';
-  }
-}
-
 function bindAdmin() {
+  dlf.onsubmit = async e => {
+    e.preventDefault();
+    if (!d_at.value) return alert('សូមជ្រើសថ្ងៃ និងម៉ោង');
+    await saveDeadline(new Date(d_at.value).toISOString());
+  };
+  d_clear.onclick = () => saveDeadline(null);
   tf.onsubmit = async e => {
     e.preventDefault();
     const { error } = await sb.rpc('admin_create_teacher', { p_email: t_e.value.trim(), p_password: t_p.value, p_name: t_n.value.trim() });
@@ -635,22 +676,6 @@ function bindAdmin() {
     await load(); render();
   };
   const g = id => document.getElementById(id);
-
-  loadDeadlineUI();
-  g('dlSave').onclick = async () => {
-    if (!g('dl').value) return alert('សូមជ្រើសកាលបរិច្ឆេទ និងម៉ោង');
-    const when = new Date(g('dl').value);
-    if (when <= new Date() && !confirm('ម៉ោងនេះកន្លងផុតហើយ។ គ្រូទាំងអស់នឹងបិទភ្លាម។ បន្ត?')) return;
-    const { error } = await sb.from('app_settings').update({ deadline: when.toISOString() }).eq('id', 1);
-    if (error) return alert('រក្សាទុកមិនបានទេ: ' + error.message);
-    loadDeadlineUI();
-  };
-  g('dlClear').onclick = async () => {
-    const { error } = await sb.from('app_settings').update({ deadline: null }).eq('id', 1);
-    if (error) return alert('មិនអាចលុបបានទេ: ' + error.message);
-    loadDeadlineUI();
-  };
-
   document.querySelectorAll('input[data-selt]').forEach(c => c.onchange = () => { c.checked ? selT.add(c.dataset.selt) : selT.delete(c.dataset.selt); rerender(); });
   if (g('selAllT')) g('selAllT').onchange = e => { myTeachers().forEach(t => e.target.checked ? selT.add(t.id) : selT.delete(t.id)); rerender(); };
   if (g('bulkClrT')) g('bulkClrT').onclick = () => { selT.clear(); rerender(); };
@@ -674,5 +699,191 @@ function bindAdmin() {
     await load(); render();
   });
 }
+// ===== photo-tools.js =====
+// បន្ថែមលើ app.js (មិនបាច់កែ app.js): ទាញយក ZIP (Excel + ថត photos/), ឆែករូបថត, មើលរូបធំ
+// ត្រូវដាក់ក្រោម <script src="app.js"> ក្នុង index.html
+(() => {
+  const $id = id => document.getElementById(id);
+  // ចំណងជើងបញ្ជីនៅជួរលើ ប៊ូតុងចុះជួរក្រោម (កុំឲ្យចំណងជើងត្រូវច្របាច់)
+  document.head.insertAdjacentHTML('beforeend', '<style>#app main h2.flex-1{flex:1 1 100%;min-width:0}</style>');
+  const hasPh = s => !!(s.photo_path && photoUrls[s.photo_path]);
+  const imgUrl = s => (hasPh(s) ? photoUrls[s.photo_path].url : null);
 
+  // ---------- មើលរូបធំ (មានព្រួញ មុន/បន្ទាប់) ----------
+  function openViewer(list, start) {
+    if (!list.length) return;
+    let i = start;
+    const box = document.createElement('div');
+    box.className = 'fixed inset-0 z-[60] bg-black/85 flex items-center justify-center p-3';
+    const draw = () => {
+      const s = list[i], u = imgUrl(s);
+      box.innerHTML = `
+        <button type="button" data-a="x" class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl">✕</button>
+        <button type="button" data-a="p" class="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 hover:bg-white/30 text-white text-2xl">‹</button>
+        <button type="button" data-a="n" class="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 hover:bg-white/30 text-white text-2xl">›</button>
+        <div class="max-w-lg w-full text-center">
+          ${u
+            ? `<img src="${u}" alt="" class="mx-auto max-h-[70vh] max-w-full rounded-xl object-contain bg-white">`
+            : `<div class="mx-auto w-64 h-64 rounded-xl border-2 border-dashed border-white/40 grid place-items-center text-white/70">គ្មានរូបថត</div>`}
+          <div class="mt-3 text-white">
+            <p class="text-lg font-bold">${esc(s.name)}</p>
+            <p class="text-sm text-white/80">ចំណាត់ថ្នាក់ ${esc(s.class_no)} · ${esc(tname(s.teacher_id))}</p>
+            <p class="text-xs text-white/60 mt-1">${khNum(i + 1)} / ${khNum(list.length)}</p>
+          </div>
+        </div>`;
+    };
+    const close = () => { document.removeEventListener('keydown', onKey); box.remove(); };
+    const step = d => { i = (i + d + list.length) % list.length; draw(); };
+    const onKey = e => {
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowLeft') step(-1);
+      else if (e.key === 'ArrowRight') step(1);
+    };
+    box.onclick = e => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'x' || e.target === box) close();
+      else if (a === 'p') step(-1);
+      else if (a === 'n') step(1);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(box);
+    draw();
+  }
+
+  // ចុចរូបតូចក្នុងតារាង/បញ្ជី → បើករូបធំ (ជំនួសការបើកផ្ទាំងថ្មី)
+  document.addEventListener('click', e => {
+    const img = e.target.closest && e.target.closest('#app img');
+    if (!img) return;
+    const src = img.getAttribute('src');
+    const list = shown();
+    const idx = list.findIndex(s => hasPh(s) && imgUrl(s) === src);
+    if (idx < 0) return;
+    e.preventDefault(); e.stopPropagation();
+    openViewer(list, idx);
+  }, true);
+
+  // ---------- ឆែករូបថត (ទិដ្ឋភាពរួម + សិស្សគ្មានរូប) ----------
+  let onlyMissing = false;
+  function openGallery() {
+    const all = shown();
+    if (!all.length) return alert('មិនទាន់មានសិស្សទេ');
+    const box = document.createElement('div');
+    box.className = 'fixed inset-0 z-50 bg-black/40 flex p-3';
+    let cur = all;
+    const card = (s, idx) => {
+      const u = imgUrl(s);
+      return `<button type="button" data-g="${idx}" class="text-left rounded-xl border ${u ? 'border-slate-200 bg-white' : 'border-red-300 bg-red-50'} overflow-hidden hover:shadow-md transition">
+        ${u ? `<img src="${u}" alt="" class="w-full aspect-square object-cover">`
+            : `<div class="w-full aspect-square grid place-items-center text-red-500 text-sm">គ្មានរូបថត</div>`}
+        <div class="p-2"><p class="text-sm font-semibold truncate">${esc(s.name)}</p>
+        <p class="text-xs text-slate-500 truncate">${esc(s.class_no)} · ${esc(tname(s.teacher_id))}</p></div></button>`;
+    };
+    const draw = () => {
+      const miss = all.filter(s => !hasPh(s)).length;
+      cur = onlyMissing ? all.filter(s => !hasPh(s)) : all;
+      box.innerHTML = `<div class="${C.card} w-full max-w-6xl max-h-[94vh] overflow-auto p-5 m-auto">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+          <h3 class="text-lg font-bold text-brand flex-1">ឆែករូបថត (${isQ() ? 'ប្រចាំត្រីមាស' : 'ប្រចាំខែ'})</h3>
+          <span class="text-sm text-emerald-700">មានរូប ${khNum(all.length - miss)}</span>
+          <span class="text-sm text-red-600">គ្មានរូប ${khNum(miss)}</span>
+          <button type="button" data-m="1" class="${C.ghost}">${onlyMissing ? 'បង្ហាញទាំងអស់' : 'បង្ហាញតែគ្មានរូប'}</button>
+          <button type="button" data-x="1" class="${C.cancel}">បិទ</button>
+        </div>
+        ${cur.length ? `<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">${cur.map(card).join('')}</div>`
+          : `<p class="text-center text-emerald-700 py-10">សិស្សទាំងអស់មានរូបថតគ្រប់គ្នា ✓</p>`}
+      </div>`;
+    };
+    box.onclick = e => {
+      if (e.target === box || e.target.closest('[data-x]')) return box.remove();
+      if (e.target.closest('[data-m]')) { onlyMissing = !onlyMissing; return draw(); }
+      const g = e.target.closest('[data-g]');
+      if (g) openViewer(cur, +g.dataset.g);
+    };
+    document.body.appendChild(box);
+    draw();
+  }
+
+  // ---------- ទាញយក ZIP (data.xlsx + photos/) ----------
+  const safe = s => String(s).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_').slice(0, 60) || 'student';
+  let busy = false;
+  async function exportZip() {
+    if (busy) return;
+    if (typeof JSZip === 'undefined') {
+      const urls = ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'];
+      for (const u of urls) {
+        if (typeof JSZip !== 'undefined') break;
+        await new Promise(r => { const s = document.createElement('script'); s.src = u; s.onload = s.onerror = r; document.head.appendChild(s); });
+      }
+    }
+    if (typeof JSZip === 'undefined') return alert('មិនអាចផ្ទុក JSZip បានទេ។ សូមពិនិត្យអ៊ីនធឺណិត ឬ extension ដែលបិទ script (ឧ. Brave Shields)');
+    if (typeof XLSX === 'undefined') return alert('មិនទាន់ដាក់ script របស់ XLSX ក្នុង index.html ទេ');
+    const rows = shown();
+    if (!rows.length) return alert('មិនទាន់មានទិន្នន័យសម្រាប់ទាញយកទេ');
+    busy = true;
+    const btn0 = $id('zipBtn'), label = btn0 ? btn0.textContent : '';
+    const setBtn = t => { const b = $id('zipBtn'); if (b) { b.textContent = t; b.disabled = busy; } };
+    try {
+      await loadPhotos();
+      const zip = new JSZip(), photos = zip.folder('photos');
+      const files = rows.map((s, i) => s.photo_path ? `${String(i + 1).padStart(3, '0')}_${safe(s.name)}.jpg` : '');
+      const queue = rows.map((s, i) => [s, i]).filter(([s]) => s.photo_path);
+      const total = queue.length;
+      let done = 0, failed = 0;
+      const worker = async () => {
+        while (queue.length) {
+          const [s, i] = queue.shift();
+          try {
+            const { data, error } = await sb.storage.from(PHOTO_BUCKET).download(s.photo_path);
+            if (error || !data) throw error || new Error('download');
+            photos.file(files[i], data);
+          } catch (err) { console.error(err); failed++; files[i] = ''; }
+          done++; setBtn(`កំពុងទាញរូប ${done}/${total}`);
+        }
+      };
+      await Promise.all(Array.from({ length: 6 }, worker));
+
+      setBtn('កំពុងបង្កើត ZIP...');
+      const head = [...heads().slice(0, -1), 'ឈ្មោះឯកសាររូប'];
+      const data = rows.map((s, i) => [
+        ...(isQ()
+          ? [i + 1, s.name, s.gender, s.class_no, formatKhmerDate(s.dob), s.course, tname(s.teacher_id)]
+          : [i + 1, s.name, s.class_no, tname(s.teacher_id)]),
+        files[i] ? 'photos/' + files[i] : ''
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([head, ...data]);
+      ws['!cols'] = head.map((h, c) => ({ wch: Math.min(45, Math.max(String(h).length, ...data.map(r => String(r[c] ?? '').length)) + 2) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, isQ() ? 'ប្រចាំត្រីមាស' : 'ប្រចាំខែ');
+      zip.file('data.xlsx', XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (isQ() ? 'quarterly-' : 'monthly-') + new Date().toISOString().slice(0, 10) + '.zip';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+
+      const noPhoto = rows.filter(s => !s.photo_path).length;
+      alert(`ទាញយករួចរាល់\nរូបក្នុង ZIP: ${total - failed}\nសិស្សគ្មានរូប: ${noPhoto}` + (failed ? `\nទាញរូបមិនបាន: ${failed}` : ''));
+    } catch (err) {
+      console.error(err);
+      alert('មិនអាចបង្កើត ZIP បានទេ: ' + err.message);
+    } finally {
+      busy = false; setBtn(label);
+    }
+  }
+
+  // ---------- ដាក់ប៊ូតុងក្នុងរបារឧបករណ៍ (រាល់ពេល render ឡើងវិញ) ----------
+  function inject() {
+    const hon = $id('hon');
+    if (!hon || $id('zipBtn')) return;
+    hon.insertAdjacentHTML('beforebegin',
+      `<button type="button" id="chkBtn" class="${C.ghost}"> ឆែករូបថត</button>` +
+      `<button type="button" id="zipBtn" class="${C.ghost}">ទាញយក ZIP (ទិន្នន័យ + រូបថត)</button>`);
+    $id('chkBtn').onclick = openGallery;
+    $id('zipBtn').onclick = exportZip;
+  }
+  new MutationObserver(inject).observe(document.getElementById('app'), { childList: true });
+  inject();
+})();
 init();
