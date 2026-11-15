@@ -4,53 +4,73 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CSI SYSTEM</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="https://fyrofappoidfaogzhdlm.supabase.co/storage/v1/object/sign/logo/New%20Tyn%20Logo%20-%20New.png?token=eyJraWQiOiIwZDhiMjI2Yi1hZDU3LTRkZTEtOGM1OS02YTFjNjY4NzkzNTgiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJsb2dvL05ldyBUeW4gTG9nbyAtIE5ldy5wbmciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkxNjE2NjUxLCJleHAiOjE4MjMxNTI2NTF9.Zm97tk_QwWLLJLGfvT8sFjX4qyvooIubEQiw6IrC61x7_MWuY3yUUFZhaBTYCyjv5oBLKg9almrXxiYDzDyhgA">
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-<script>
-tailwind.config = { theme: { extend: { colors: { brand: '#2f5d46' }, fontFamily: { sans: ['"Noto Sans Khmer"', 'system-ui', 'sans-serif'] } } } }
-</script>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-</head>
-<body class="bg-stone-50 text-stone-900 text-[15px]">
-<div id="app"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="app.js"></script>
-<script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
     theme: {
       extend: {
-        colors: {
-          brand: '#1E3A8A',
-          accent: '#DC2626'
-        }
+        colors: { brand: '#1E3A8A', accent: '#DC2626' },
+        fontFamily: { sans: ['"Noto Sans Khmer"', 'system-ui', 'sans-serif'] }
       }
     }
   }
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1E3A8A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CSI">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
   body { font-family: 'Noto Sans Khmer', sans-serif; }
   @media (max-width: 768px) {
     .responsive-table thead { display: none; }
-    .responsive-table tr { 
-      display: block; margin-bottom: 12px; border: 1px solid #e5e7eb; 
+    .responsive-table tr {
+      display: block; margin-bottom: 12px; border: 1px solid #e5e7eb;
       border-radius: 8px; background: white; padding: 8px;
     }
-    .responsive-table td { 
+    .responsive-table td {
       display: flex; justify-content: space-between; align-items: center;
       padding: 6px 8px; border: none; border-bottom: 1px solid #f3f4f6;
     }
     .responsive-table td:last-child { border-bottom: none; }
-    .responsive-table td::before { 
-      content: attr(data-label); font-weight: 600; 
+    .responsive-table td::before {
+      content: attr(data-label); font-weight: 600;
       color: #1E3A8A; font-size: 0.85rem;
     }
   }
 </style>
+</head>
+<body class="bg-stone-50 text-stone-900 text-[15px]">
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="app.js"></script>
+<script src="photo-tools.js"></script>
+<script>
+  // PWA: ចុះឈ្មោះ Service Worker (ដំណើរការលើ HTTPS ឬ localhost/127.0.0.1 ប៉ុណ្ណោះ)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(console.error));
+  }
+  // ប៊ូតុង "ដំឡើងអាប់" (Chrome/Edge/Brave/Android)
+  let deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstall = e;
+    if (document.getElementById('pwaInstall')) return;
+    const b = document.createElement('button');
+    b.id = 'pwaInstall';
+    b.textContent = '⬇ ដំឡើងអាប់';
+    b.className = 'fixed bottom-4 right-4 z-40 bg-brand text-white rounded-full px-5 py-3 text-sm font-semibold shadow-lg hover:brightness-110 active:scale-95 transition';
+    b.onclick = async () => { b.remove(); deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; };
+    document.body.appendChild(b);
+  });
+  window.addEventListener('appinstalled', () => document.getElementById('pwaInstall')?.remove());
+</script>
 </body>
 </html>

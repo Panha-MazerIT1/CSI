@@ -1,0 +1,17 @@
+{
+  "name": "ប្រព័ន្ធទិន្នន័យសិស្ស CSI",
+  "short_name": "CSI",
+  "description": "ប្រព័ន្ធទិន្នន័យសិស្ស សាលាអន្តរទ្វីប ខូស្បេស៍",
+  "lang": "km",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f5f9",
+  "theme_color": "#1E3A8A",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
