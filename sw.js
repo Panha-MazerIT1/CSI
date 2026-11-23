@@ -4,9 +4,9 @@
 //  • script/font ពី CDN: ប្រើ cache ភ្លាម ហើយធ្វើបច្ចុប្បន្នភាពនៅខាងក្រោយ
 //  • Supabase (ទិន្នន័យ, ចូលប្រព័ន្ធ, រូបថត): មិន cache ទេ ដើម្បីកុំឲ្យឃើញទិន្នន័យចាស់ ឬបញ្ហាសុវត្ថិភាព
 // ពេលកែឯកសារ សូមប្តូរលេខ VERSION ដើម្បីសម្អាត cache ចាស់
-const VERSION = 'csi-v1';
+const VERSION = 'csi-v2';
 const SHELL = [
-  './', './index.html', './app.js', './photo-tools.js', './style.css',
+  './', './index.html', './app.js', './photo-tools.js', './qr-login.js', './roster.js', './tailwind.css', './style.css',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'
 ];
 
