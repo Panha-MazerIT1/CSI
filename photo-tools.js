@@ -182,6 +182,7 @@
     $id('chkBtn').onclick = openGallery;
     $id('zipBtn').onclick = exportZip;
   }
+
   new MutationObserver(inject).observe(document.getElementById('app'), { childList: true });
   inject();
 })();

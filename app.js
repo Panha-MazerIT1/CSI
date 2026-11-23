@@ -699,5 +699,3 @@ function bindAdmin() {
     await load(); render();
   });
 }
-
-init();

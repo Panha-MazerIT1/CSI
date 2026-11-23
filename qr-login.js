@@ -1,7 +1,5 @@
 // ===== qr-login.js =====
 // QR សម្រាប់ចូលប្រព័ន្ធ: admin បង្កើតគ្រូ → បង្ហាញ QR · ទំព័រចូល → ស្កេន / ផ្ទុកឡើងរូប QR
-// ដាក់ក្រោម app.js ក្នុង index.html
-if (!String(sb.rpc).includes('showTeacherQr')) // កុំដាក់ពីរដង
 (() => {
   const loadLib = async (ok, urls) => {
     for (const u of urls) {
