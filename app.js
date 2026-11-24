@@ -160,7 +160,7 @@ function showLogin(err = '') {
       <div class="flex flex-col items-center gap-3 mb-2">
         <img src="${LOGO_URL}" alt="Logo" class="h-24 sm:h-32 w-auto object-contain" onerror="this.style.display='none'">
         <h1 class="text-xl font-bold text-brand text-center">សាលាអន្តរទ្វីប ខូស្បេស៍</h1>
-        <p class="text-xs text-slate-500">Co-space Intercon School/p>
+        <p class="text-xs text-slate-500">Co-space Intercon School</p>
       </div>
       <input id="em" type="email" placeholder="អ៊ីមែល" required class="${C.input}">
       <input id="pw" type="password" placeholder="ពាក្យសម្ងាត់" required class="${C.input}">
