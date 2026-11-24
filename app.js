@@ -159,8 +159,8 @@ function showLogin(err = '') {
     <form id="lf" class="w-full max-w-md grid gap-4 p-6 sm:p-8 ${C.card} shadow-xl">
       <div class="flex flex-col items-center gap-3 mb-2">
         <img src="${LOGO_URL}" alt="Logo" class="h-24 sm:h-32 w-auto object-contain" onerror="this.style.display='none'">
-        <h1 class="text-xl font-bold text-brand text-center">ប្រព័ន្ធទិន្នន័យសិស្ស</h1>
-        <p class="text-xs text-slate-500">សាលាអន្តរទ្វីប ខូស្បេស៍</p>
+        <h1 class="text-xl font-bold text-brand text-center">សាលាអន្តរទ្វីប ខូស្បេស៍</h1>
+        <p class="text-xs text-slate-500">Co-space Intercon School/p>
       </div>
       <input id="em" type="email" placeholder="អ៊ីមែល" required class="${C.input}">
       <input id="pw" type="password" placeholder="ពាក្យសម្ងាត់" required class="${C.input}">
@@ -237,8 +237,8 @@ function render() {
     <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
       <img src="${LOGO_URL}" alt="Logo" class="h-14 sm:h-16 w-auto object-contain drop-shadow" onerror="this.style.display='none'">
       <div class="flex-1 min-w-0">
-        <h1 class="text-base sm:text-xl font-bold leading-tight truncate">ប្រព័ន្ធទិន្នន័យសិស្ស</h1>
-        <p class="text-xs sm:text-sm text-white/80 leading-tight truncate">សាលាអន្តរទ្វីប ខូស្បេស៍</p>
+        <h1 class="text-base sm:text-xl font-bold leading-tight truncate">សាលាអន្តរទ្វីប ខូស្បេស៍</h1>
+        <p class="text-xs sm:text-sm text-white/80 leading-tight truncate">Co-space Intercon School</p>
       </div>
       <div class="hidden sm:flex items-center gap-2 bg-white/10 rounded-full pl-1 pr-4 py-1">
         <span class="w-8 h-8 rounded-full bg-white text-brand grid place-items-center font-bold text-sm">${esc([...me.name][0] || '?')}</span>
