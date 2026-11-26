@@ -96,9 +96,19 @@
   // ---------- ការចងចាំការកំណត់ក្នុងថ្នាក់ (ទម្រង់ / កម្រិត / ចំណងជើងរង) ----------
   const prefKey = () => `csi_res_${tid}_${shift}`;
   const readPref = () => { try { return JSON.parse(localStorage.getItem(prefKey()) || '{}'); } catch (e) { return {}; } };
-  const savePref = () => { try { localStorage.setItem(prefKey(), JSON.stringify({ fmt, level, sub })); } catch (e) { /* ignore */ } };
+  const savePref = () => {
+    try { localStorage.setItem(prefKey(), JSON.stringify({ fmt, level, sub })); } catch (e) { /* ignore */ }
+    const sh = shift === '_' ? '' : shift, row = { teacher_id: tid, shift: sh, fmt, level: level || '', subtitle: sub || '' };
+    dbPref.set(`${tid}|${sh}`, row);
+    try { Promise.resolve(sb.from('roster_class_settings').upsert(row, { onConflict: 'teacher_id,shift' })).catch(() => {}); } catch (e) { /* ignore */ }
+  };
+  const dbPref = new Map();   // `${tid}|${shift}` -> {fmt, level, subtitle}
+  async function loadDbPref() {
+    try { const { data } = await sb.from('roster_class_settings').select('*'); dbPref.clear(); (data || []).forEach(r => dbPref.set(`${r.teacher_id}|${r.shift || ''}`, r)); } catch (e) { /* table missing */ }
+  }
   function applyClass() {
-    const p = readPref();
+    const d = dbPref.get(`${tid}|${shift === '_' ? '' : shift}`);
+    const p = d ? { fmt: d.fmt, level: d.level, sub: d.subtitle } : readPref();
     fmt = FORMATS[p.fmt] ? p.fmt : 'kh_en'; level = p.level || ''; sub = p.sub || '';
     const hit = visibleStu().map(s => raw.get(String(s.id))).find(x => x && FORMATS[x.fmt]);
     if (hit) fmt = hit.fmt;
@@ -169,6 +179,7 @@
       if (!shift || (shift !== '_' && !SHIFTS.includes(shift))) {
         shift = [...SHIFTS, '_'].find(s => students.some(x => s === '_' ? !x.shift : x.shift === s)) || 'ព្រឹក';
       }
+      await loadDbPref();
       applyClass();
       dirty = false; loadedKey = curKey();
     } catch (e) { lastErr = e.message + hint(e); students = []; entry = new Map(); raw = new Map(); had = new Set(); allRaw = new Map(); loadedKey = ''; }
@@ -653,5 +664,6 @@
     }
   };
 
+  window.RX = { FORMATS, calc, rankOf, gradeOf, R2, KH_M, SHIFTS };
   if (typeof window !== 'undefined' && window.__RX_TEST__) window.__RX_TEST__.api = { periodData, setView: (v, a, b) => { view = v; sy = a; syStart = b; }, loadResults, calc, rankOf, FORMATS, gradeOf, exportInfo, exportExcel, exportPdf, setState: o => { ({ tid, shift, month, year, fmt, level, sub } = Object.assign({ tid, shift, month, year, fmt, level, sub }, o)); }, getEntry: () => entry };
 })();

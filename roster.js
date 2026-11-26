@@ -91,6 +91,7 @@
         ${fld('វេន', `<select id="rs_a_shift" name="shift" class="${C.input}">${shiftOpts(SHIFTS.includes(shiftF) ? shiftF : '', 'មិនទាន់កំណត់')}</select>`)}
         ${fld('ភូមិ', `<input id="rs_a_village" name="village" placeholder="ភូមិ" class="${C.input}">`)}
         ${fld('ថ្ងៃខែឆ្នាំកំណើត', `<input id="rs_a_dob" name="dob" type="date" class="${C.input}">`)}
+        ${fld('លេខសម្គាល់សិស្ស (កាត)', `<input id="rs_a_code" name="code" placeholder="ឧ. A0080" class="${C.input}">`)}
         ${fld('លេខទូរសព្ទ', `<input id="rs_a_phone" name="phone" placeholder="លេខទូរសព្ទ" class="${C.input}">`)}
         ${fld('ថ្ងៃចូលរៀន', `<input id="rs_a_enr" name="enr" type="date" class="${C.input}">`)}
         ${fld('ឡាន', `<input id="rs_a_bus" name="bus" placeholder="ឡាន" class="${C.input}">`)}
@@ -137,7 +138,7 @@
     </div>`;
 
     const admin = isAdmin();
-    const heads = ['ល.រ', 'ឈ្មោះ', 'ភេទ', 'ភូមិ', 'ថ្ងៃខែឆ្នាំកំណើត', 'លេខទូរសព្ទ', 'ថ្ងៃចូលរៀន', 'ឡាន', 'វេន', ...(admin ? ['គ្រូ'] : []), 'សកម្មភាព'];
+    const heads = ['ល.រ', 'ឈ្មោះ', 'ភេទ', 'ភូមិ', 'ថ្ងៃខែឆ្នាំកំណើត', 'លេខសម្គាល់', 'លេខទូរសព្ទ', 'ថ្ងៃចូលរៀន', 'ឡាន', 'វេន', ...(admin ? ['គ្រូ'] : []), 'សកម្មភាព'];
     const view = (r, i) => `<tr class="bg-white hover:bg-brand/10 transition ${admin && i > 0 && vis[i - 1].teacher_id !== r.teacher_id ? 'border-t-2 border-slate-300' : ''}">
       ${td('ជ្រើស', `<input type="checkbox" class="${cb}" data-s="${r.id}" ${sel.has(String(r.id)) ? 'checked' : ''}>`)}
       ${td('ល.រ', khNum(i + 1))}
@@ -145,6 +146,7 @@
       ${td('ភេទ', nd(r.gender))}
       ${td('ភូមិ', nd(r.village))}
       ${td('ថ្ងៃខែឆ្នាំកំណើត', nd(r.dob ? formatKhmerDate(r.dob) : ''))}
+      ${td('លេខសម្គាល់', nd(r.student_code))}
       ${td('លេខទូរសព្ទ', nd(r.phone))}
       ${td('ថ្ងៃចូលរៀន', nd(r.enrolled_at ? formatKhmerDate(r.enrolled_at) : ''))}
       ${td('ឡាន', nd(r.bus))}
@@ -158,6 +160,7 @@
       ${td('ភេទ', `<select id="rs_e_gender" class="${C.input}"><option ${r.gender === 'ស្រី' ? 'selected' : ''}>ស្រី</option><option ${r.gender === 'ប្រុស' ? 'selected' : ''}>ប្រុស</option></select>`)}
       ${td('ភូមិ', `<input id="rs_e_village" value="${esc(r.village)}" class="${C.input} min-w-[9rem]">`)}
       ${td('ថ្ងៃខែឆ្នាំកំណើត', `<input id="rs_e_dob" type="date" value="${r.dob || ''}" class="${C.input}">`)}
+      ${td('លេខសម្គាល់', `<input id="rs_e_code" value="${esc(r.student_code || '')}" class="${C.input} min-w-[6rem]">`)}
       ${td('លេខទូរសព្ទ', `<input id="rs_e_phone" value="${esc(r.phone)}" class="${C.input} min-w-[9rem]">`)}
       ${td('ថ្ងៃចូលរៀន', `<input id="rs_e_enr" type="date" value="${r.enrolled_at || ''}" class="${C.input}">`)}
       ${td('ឡាន', `<input id="rs_e_bus" value="${esc(r.bus)}" class="${C.input} min-w-[6rem]">`)}
@@ -202,18 +205,18 @@
     if (!name) return;
     if (rows.some(r => r.teacher_id === tid && norm(r.name) === norm(name))) return alert('សិស្សនេះមានក្នុងបញ្ជីរួចហើយ');
     if (removed.some(r => r.teacher_id === tid && norm(r.name) === norm(name))) return alert('សិស្សនេះមានក្នុងបញ្ជី "សិស្សដែលបានលុប" ខាងក្រោមរួចហើយ សូមឱ្យ admin ស្ដារវិញ');
-    const { data: ins, error } = await sb.from(T).insert({ teacher_id: tid, name, gender: g('gender'), village: g('village'), dob: g('dob') || null, phone: g('phone'), enrolled_at: g('enr') || null, bus: g('bus'), shift: g('shift') || null }).select('id').single();
+    const { data: ins, error } = await sb.from(T).insert({ teacher_id: tid, name, gender: g('gender'), village: g('village'), dob: g('dob') || null, phone: g('phone'), enrolled_at: g('enr') || null, bus: g('bus'), shift: g('shift') || null, ...(g('code') ? { student_code: g('code') } : {}) }).select('id').single();
     if (error) return fail('បន្ថែមមិនបានទេ: ', error);
     const pf = gid('rs_a_photo') && gid('rs_a_photo').files[0];
     if (pf) { try { await uploadPhoto(tid, ins.id, pf, null, T); } catch (e) { fail('រក្សាទុកសិស្សរួច ប៉ុន្តែរូបថតមិនបានចូលទេ: ', e); } }
-    ['name', 'village', 'phone', 'bus', 'dob', 'photo'].forEach(k => { const el = gid('rs_a_' + k); if (el) el.value = ''; });
+    ['name', 'village', 'phone', 'bus', 'dob', 'photo', 'code'].forEach(k => { const el = gid('rs_a_' + k); if (el) el.value = ''; });
     await reload();
     gid('rs_a_name') && gid('rs_a_name').focus();
   }
 
   async function save(id) {
     const v = k => gid('rs_e_' + k).value.trim();
-    const { error } = await sb.from(T).update({ name: cleanName(v('name')), gender: v('gender'), village: v('village'), dob: v('dob') || null, phone: v('phone'), enrolled_at: v('enr') || null, bus: v('bus'), shift: v('shift') || null }).eq('id', id);
+    const { error } = await sb.from(T).update({ name: cleanName(v('name')), gender: v('gender'), village: v('village'), dob: v('dob') || null, phone: v('phone'), enrolled_at: v('enr') || null, bus: v('bus'), shift: v('shift') || null, student_code: v('code') || null }).eq('id', id);
     if (error) return fail('មិនអាចរក្សាទុកបានទេ: ', error);
     const pf = gid('rs_e_photo') && gid('rs_e_photo').files[0];
     if (pf) {
